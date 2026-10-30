@@ -12,6 +12,7 @@ import { ApiRequestError, type MobileApiClient } from "@/services/api/client";
 export type OrganizationDirectoryInput = {
   q?: string;
   type?: OrganizationType;
+  institutionId?: string;
   cursor?: string;
 };
 
@@ -90,6 +91,7 @@ export class MobileOrganizationsHttpTransport implements MobileOrganizationsTran
     const query = new URLSearchParams({ limit: "25" });
     if (input.q) query.set("q", input.q);
     if (input.type) query.set("type", input.type);
+    if (input.institutionId) query.set("institutionId", input.institutionId);
     if (input.cursor) query.set("cursor", input.cursor);
 
     return this.client.request<OrganizationSearchPage>(
