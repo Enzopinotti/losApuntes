@@ -281,9 +281,15 @@ export const organizationsApi = {
     );
   },
 
-  events: (id: string, cursor?: string, signal?: AbortSignal) => {
+  events: (
+    id: string,
+    cursor?: string,
+    signal?: AbortSignal,
+    from?: string,
+  ) => {
     const query = new URLSearchParams({ limit: "20" });
     if (cursor) query.set("cursor", cursor);
+    if (from && !cursor) query.set("from", from);
     return request<{ items: OrganizationEvent[]; nextCursor: string | null }>(
       `/organizations/${encodeURIComponent(id)}/events?${query.toString()}`,
       { signal },
