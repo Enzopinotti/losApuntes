@@ -168,6 +168,17 @@
   gap: 1rem;
 }
 
+.organization-card-actions,
+.organization-directory-follow {
+  display: grid;
+  justify-items: start;
+  gap: 0.5rem;
+}
+
+.organization-card-actions button {
+  min-height: 44px;
+}
+
 .organization-card p {
   margin: 0.2rem 0 0.6rem;
   color: #626274;
