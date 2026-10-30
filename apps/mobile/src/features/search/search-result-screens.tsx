@@ -31,6 +31,7 @@ import {
 import { mobileSearchApi } from "./search-runtime";
 import { publicProfileAcademicSummary } from "./public-profile-academic-summary";
 import { publicProfileActivityPresentation } from "./public-profile-activity-presentation";
+import { PublicProfileActivityLink } from "./public-profile-activity-link";
 import { PublicProfileAvatar } from "./public-profile-avatar";
 import { SharePublicProfileAction } from "./share-public-profile-action";
 import { useFencedDetail } from "./use-fenced-detail";
@@ -345,6 +346,11 @@ export function PublicProfileScreen({ profileId }: { profileId: string }) {
                             {activity.description}
                           </Text>
                         ) : null}
+                        <PublicProfileActivityLink
+                          key={`${authorityKey ?? "anonymous"}:${activity.id}`}
+                          title={activity.title}
+                          value={activity.url}
+                        />
                       </View>
                     );
                   })}
