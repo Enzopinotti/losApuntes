@@ -1,0 +1,83 @@
+name: B279 study runner keyboard shortcuts
+
+on:
+  pull_request:
+    paths:
+      - apps/web/src/pages/StudyRunner.tsx
+      - apps/web/src/pages/StudyRunnerShortcuts.tsx
+      - apps/web/src/pages/StudyRunnerShortcuts.scss
+      - apps/web/src/features/study/study-runner-shortcuts.mjs
+      - apps/web/src/features/study/study-runner-shortcuts.d.mts
+      - scripts/test-web-study-runner-shortcuts-b279.test.mjs
+      - scripts/test-web-study-runner-shortcuts-b279-browser.mjs
+      - .github/workflows/b279-study-runner-shortcuts.yml
+      - docs/contracts/b279-study-runner-shortcuts.md
+      - package.json
+  push:
+    branches:
+      - feat/b279-study-runner-keyboard-current-main-20261030
+
+permissions:
+  contents: read
+
+concurrency:
+  group: b279-study-runner-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  runner-exact-head:
+    name: B279 Web keyboard, Chromium and production build
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    env:
+      CI: "true"
+    steps:
+      - name: Checkout source exact SHA read-only
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+      - name: Assert exact candidate and pristine checkout
+        env:
+          EXPECTED_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          test "$(git rev-parse HEAD)" = "$EXPECTED_SHA"
+          test -z "$(git status --porcelain=v1 --untracked-files=all)"
+      - name: Set up pnpm 9
+        uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6
+      - name: Set up Node 24
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+      - name: Install frozen dependencies
+        run: pnpm install --frozen-lockfile --filter los-apuntes --filter @losapuntes/web...
+      - name: Adversarial keyboard and authority tests
+        run: pnpm test:web-study-runner-shortcuts-b279
+      - name: Verify TypeScript
+        run: pnpm --filter @losapuntes/web check:types
+      - name: Verify strict ESLint
+        run: pnpm --filter @losapuntes/web lint
+      - name: Verify canonical formatting
+        run: pnpm --filter @losapuntes/web format:check
+      - name: Read-only formatter diffs for diagnosis
+        if: failure()
+        run: |
+          for file in src/pages/StudyRunner.tsx src/pages/StudyRunnerShortcuts.tsx src/pages/StudyRunnerShortcuts.scss; do
+            pnpm --filter @losapuntes/web exec prettier "$file" > "$RUNNER_TEMP/b279-$(basename "$file")"
+            diff -u "apps/web/$file" "$RUNNER_TEMP/b279-$(basename "$file")" || true
+          done
+      - name: Install Chromium runtime
+        run: pnpm exec playwright install --with-deps chromium
+      - name: Real imported study plan, navigation and timer
+        run: node scripts/test-web-study-runner-shortcuts-b279-browser.mjs
+      - name: Build actual production Web
+        run: pnpm --filter @losapuntes/web build
+      - name: Assert exact immutable SHA after QA
+        env:
+          EXPECTED_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          test "$(git rev-parse HEAD)" = "$EXPECTED_SHA"
+          test -z "$(git status --porcelain=v1 --untracked-files=all)"
+
+# Green UI acceptance never certifies the global HIGH audit or release.
