@@ -4,6 +4,7 @@ import { useAuth } from "../contexts/useAuth";
 import type { OrganizationDetail } from "../features/organizations/interfaces";
 import { organizationContentCursorRepeats } from "../features/organizations/contentPagination";
 import { OrganizationPublicShareAction } from "../features/organizations/OrganizationPublicShareAction";
+import { OrganizationAvatar } from "../features/organizations/OrganizationAvatar";
 import {
   isOrganizationsApiError,
   organizationsApi,
@@ -606,8 +607,14 @@ const Organization = () => {
     >
       {feedReturnLink}
       <header className="organizations-hero organization-public-hero">
-        <div>
-          <p className="organizations-eyebrow">
+        <div className="organization-public-identity">
+          <OrganizationAvatar
+            avatarUrl={organization.avatarUrl}
+            name={organization.name}
+            size="profile"
+          />
+          <div>
+            <p className="organizations-eyebrow">
             {organization.scope.institution.name}
           </p>
           <h1 id="organization-title">{organization.name}</h1>
@@ -619,7 +626,8 @@ const Organization = () => {
                 ? "Identidad verificada"
                 : "Claim sin verificar"}
             </span>
-            <span>{organization.followerCount} seguidores</span>
+              <span>{organization.followerCount} seguidores</span>
+            </div>
           </div>
         </div>
         <div className="organization-header-actions">
