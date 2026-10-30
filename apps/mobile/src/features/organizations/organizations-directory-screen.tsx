@@ -374,6 +374,33 @@ export function MobileOrganizationsDirectoryScreen() {
       </View>
 
       <View style={styles.card}>
+        <Text style={styles.label}>Estado de verificación</Text>
+        <View accessibilityRole="radiogroup" style={styles.filters}>
+          {verificationFilters.map((option) => {
+            const selected = verificationState === option.value;
+            return (
+              <Pressable
+                accessibilityRole="radio"
+                accessibilityState={{ checked: selected }}
+                key={option.value ?? "all"}
+                onPress={() => setVerificationState(option.value)}
+                style={[styles.filter, selected && styles.filterSelected]}
+              >
+                <Text
+                  style={[
+                    styles.filterText,
+                    selected && styles.filterTextSelected,
+                  ]}
+                >
+                  {option.label}
+                </Text>
+              </Pressable>
+            );
+          })}
+        </View>
+      </View>
+
+      <View style={styles.card}>
         <Text style={styles.label}>Filtrar por institución</Text>
         <TextInput
           accessibilityLabel="Buscar institución para filtrar organizaciones"
