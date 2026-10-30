@@ -13,6 +13,7 @@ import { useEffect, useMemo, useState } from "react";
 
 import { navigationAuthorityKey } from "@/features/navigation/product-navigation";
 import { ProductSurface } from "@/features/navigation/product-surface";
+import { PublicAvatar } from "@/features/profile/public-avatar";
 import { useSession } from "@/features/session/session-provider";
 
 import {
@@ -82,6 +83,11 @@ function OrganizationRow({
       style={styles.row}
     >
       <View style={styles.rowHeading}>
+        <PublicAvatar
+          avatarUrl={organization.avatarUrl}
+          displayName={organization.name}
+          size="small"
+        />
         <Text style={styles.rowTitle}>{organization.name}</Text>
         {organization.verificationState === "verified" ? (
           <Text
