@@ -1,6 +1,9 @@
 import { useState } from "react";
 import type { OrganizationCard } from "./interfaces";
-import { isOrganizationsApiError, organizationsApi } from "./services/organizationsService";
+import {
+  isOrganizationsApiError,
+  organizationsApi,
+} from "./services/organizationsService";
 import { useAsyncAuthorityFence } from "../../shared/useAsyncAuthorityFence";
 
 function messageFor(error: unknown): string {
@@ -139,4 +142,3 @@ export function OrganizationDirectoryFollowAction({
     </div>
   );
 }
-
