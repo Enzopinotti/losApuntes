@@ -298,6 +298,16 @@ export function PublicProfileScreen({ profileId }: { profileId: string }) {
                   Habilidades: {data.profile.skills.skills.join(", ")}
                 </Text>
               ) : null}
+              {data.profile.skills?.interests.length ? (
+                <Text style={styles.meta}>
+                  Intereses: {data.profile.skills.interests.join(", ")}
+                </Text>
+              ) : null}
+              {data.profile.skills?.languages.length ? (
+                <Text style={styles.meta}>
+                  Idiomas: {data.profile.skills.languages.join(", ")}
+                </Text>
+              ) : null}
               {data.profile.activities?.length ? (
                 <View style={styles.activityList}>
                   <Text style={styles.sectionTitle}>Actividad pública</Text>
