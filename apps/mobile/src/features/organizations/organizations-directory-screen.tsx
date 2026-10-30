@@ -138,9 +138,8 @@ export function MobileOrganizationsDirectoryScreen() {
   const [query, setQuery] = useState("");
   const [queryError, setQueryError] = useState<string | null>(null);
   const [type, setType] = useState<OrganizationType | null>(null);
-  const [verificationState, setVerificationState] = useState<
-    OrganizationVerificationState | null
-  >(null);
+  const [verificationState, setVerificationState] =
+    useState<OrganizationVerificationState | null>(null);
   const [filterInstitutionQuery, setFilterInstitutionQuery] = useState("");
   const [filterInstitutionSelection, setFilterInstitutionSelection] = useState<{
     sessionKey: string;
