@@ -2,6 +2,7 @@ import type {
   AcademicCatalogNode,
   OrganizationCard,
   OrganizationType,
+  OrganizationVerificationState,
 } from "@losapuntes/contracts";
 import { Redirect, useIsFocused, useRouter } from "expo-router";
 import {
@@ -40,6 +41,15 @@ const types: Array<{ value: OrganizationType | null; label: string }> = [
   { value: "cultural_sports", label: "Cultura y deportes" },
   { value: "career_community", label: "Carreras" },
   { value: "alumni_association", label: "Graduados" },
+];
+
+const verificationFilters: Array<{
+  value: OrganizationVerificationState | null;
+  label: string;
+}> = [
+  { value: null, label: "Todas" },
+  { value: "verified", label: "Verificadas" },
+  { value: "unverified", label: "Sin verificar" },
 ];
 
 const typeLabel: Record<OrganizationType, string> = {
@@ -128,6 +138,9 @@ export function MobileOrganizationsDirectoryScreen() {
   const [query, setQuery] = useState("");
   const [queryError, setQueryError] = useState<string | null>(null);
   const [type, setType] = useState<OrganizationType | null>(null);
+  const [verificationState, setVerificationState] = useState<
+    OrganizationVerificationState | null
+  >(null);
   const [filterInstitutionQuery, setFilterInstitutionQuery] = useState("");
   const [filterInstitutionSelection, setFilterInstitutionSelection] = useState<{
     sessionKey: string;
