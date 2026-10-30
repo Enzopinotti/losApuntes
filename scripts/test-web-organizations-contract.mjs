@@ -255,6 +255,20 @@ assert.match(followPageB283, /current\?\.scopeKey === directoryScopeKey/u);
 assert.match(followPageB283, /institutionId:\s*filterInstitution\?\.id/u);
 assert.match(followStylesB283, /\.organization-card-actions button\s*\{[^}]*min-height:\s*44px/su);
 
+const mobileInstitutionApiB284 = await read('apps/mobile/src/features/organizations/organizations-api.ts');
+const mobileInstitutionCtrlB284 = await read('apps/mobile/src/features/organizations/organizations-controller.ts');
+const mobileInstitutionDirectoryB284 = await read('apps/mobile/src/features/organizations/organizations-directory-screen.tsx');
+assert.match(mobileInstitutionApiB284, /institutionId\?:\s*string/u);
+assert.match(mobileInstitutionApiB284, /if \(input\.institutionId\) query\.set\("institutionId", input\.institutionId\)/u);
+assert.match(mobileInstitutionCtrlB284, /\.\.\.\(input\.institutionId \? \{ institutionId: input\.institutionId \} : \{\}\)/u);
+assert.match(mobileInstitutionDirectoryB284, /filterInstitution\?\.id \?\? "all-institutions"/u);
+assert.match(mobileInstitutionDirectoryB284, /institutionId: filterInstitution\.id/u);
+assert.match(mobileInstitutionDirectoryB284, /mobileAcademicFollowsApi\s*\.search\(\s*"institution", request\.query/u);
+assert.match(mobileInstitutionDirectoryB284, /request\.authorityKey !== authorityKey/u);
+assert.match(mobileInstitutionDirectoryB284, /Buscar institución/u);
+assert.match(mobileInstitutionDirectoryB284, /Quitar filtro de institución/u);
+assert.match(mobileInstitutionDirectoryB284, /<PublicAvatar/u);
+
 assert.match(service, /from\?:\s*string/u);
 assert.ok(service.includes('if (from && !cursor) query.set("from", from)'));
 assert.ok(publicPage.includes('aria-label="Filtrar eventos"'));
