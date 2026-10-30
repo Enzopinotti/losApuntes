@@ -1,9 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Linking, Pressable, StyleSheet, Text, View } from "react-native";
 
-import {
-  publicProfileActivityExternalUrl,
-} from "./public-profile-activity-link-policy";
+import { publicProfileActivityExternalUrl } from "./public-profile-activity-link-policy";
 
 export function PublicProfileActivityLink({
   title,
