@@ -28,6 +28,9 @@ export function PublicProfileActivityLink({
   if (!url) return null;
   const externalHost = new URL(url).hostname;
   const accessibilityLabel = `Abrir enlace externo de ${title} en ${externalHost}`;
+  const linkLabel = opening
+    ? "Abriendo enlace…"
+    : `Abrir enlace externo · ${externalHost}`;
 
   const open = async () => {
     if (openingRef.current) return;
@@ -56,10 +59,7 @@ export function PublicProfileActivityLink({
         onPress={() => void open()}
         style={styles.action}
       >
-        <Text style={styles.label}>
-          {opening ? "Abriendo enlace…" : "Abrir enlace externo"} ·
-          {` ${externalHost}`}
-        </Text>
+        <Text style={styles.label}>{linkLabel}</Text>
       </Pressable>
       {error ? (
         <Text accessibilityRole="alert" style={styles.error}>
