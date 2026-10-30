@@ -146,6 +146,36 @@ const Organization = () => {
       : null;
   const postsCursorIssue = currentCursorIssues?.posts ?? false;
   const eventsCursorIssue = currentCursorIssues?.events ?? false;
+  const [eventViewState, setEventViewState] = useState<{
+    scopeKey: string;
+    value: "all" | "upcoming";
+  } | null>(null);
+  const eventView =
+    eventViewState?.scopeKey === organizationScopeKey
+      ? eventViewState.value
+      : "all";
+  const [upcomingState, setUpcomingState] = useState<{
+    scopeKey: string;
+    items: OrganizationDetail["events"];
+    nextCursor: string | null;
+    requestedCursors: ReadonlySet<string>;
+    cursorRepeated: boolean;
+  } | null>(null);
+  const upcoming =
+    upcomingState?.scopeKey === organizationScopeKey ? upcomingState : null;
+  const visibleEvents =
+    eventView === "upcoming"
+      ? (upcoming?.items ?? [])
+      : (organization?.events ?? []);
+  const visibleEventsNextCursor =
+    eventView === "upcoming"
+      ? (upcoming?.nextCursor ?? null)
+      : (organization?.eventsNextCursor ?? null);
+  const visibleEventsCursorIssue =
+    eventView === "upcoming"
+      ? (upcoming?.cursorRepeated ?? false)
+      : eventsCursorIssue;
+
   const loadedContentCursors = useRef({
     scopeKey: organizationScopeKey,
     posts: new Set<string>(),
@@ -166,6 +196,8 @@ const Organization = () => {
         events: new Set(),
       };
       setCursorIssueState(null);
+      setEventViewState(null);
+      setUpcomingState(null);
       setOrganizationState({
         scopeKey: organizationScopeKey,
         organization: result.organization,
