@@ -2023,6 +2023,9 @@ export class OrganizationService {
     return {
       ...(dto.q ? { q: normalizeName(dto.q) } : {}),
       ...(dto.type ? { type: dto.type } : {}),
+      ...(dto.verificationState
+        ? { verificationState: dto.verificationState }
+        : {}),
       ...(institutionId ? { institutionId } : {}),
       ...(programId ? { programId } : {}),
     };
