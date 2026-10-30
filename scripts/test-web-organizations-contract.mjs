@@ -299,4 +299,16 @@ assert.ok(directory.includes('<option value="unverified">Sin verificar</option>'
 assert.ok(directory.includes('<OrganizationDirectoryFollowAction'));
 assert.ok(directory.includes('filterInstitution?.id ?? "all-institutions"'));
 
+const b290MobileCtrl = await read('apps/mobile/src/features/organizations/organizations-controller.ts');
+const b290MobileDir = await read('apps/mobile/src/features/organizations/organizations-directory-screen.tsx');
+assert.match(b290MobileCtrl, /async toggleFollow\(\s*authorityKey:\s*string,\s*organizationId:\s*string/u);
+assert.match(b290MobileCtrl, /followAction: MobileOrganizationsDirectoryFollowAction \| null/u);
+assert.match(b290MobileCtrl, /const confirmedFollowing = refreshed\.organization\.viewer\?\.following/u);
+assert.match(b290MobileCtrl, /if \(ambiguousFailure\(failure\)\)/u);
+assert.match(b290MobileDir, /followAction=\{current\.followAction\}/u);
+assert.match(b290MobileDir, /controller\.toggleFollow\(\s*current\.authorityKey,\s*organization\.id/u);
+assert.match(b290MobileDir, /accessibilityState=\{\{ busy, disabled: followActionBusy \}\}/u);
+assert.match(b290MobileDir, /filterInstitutionQuery/u);
+assert.match(b290MobileDir, /<PublicAvatar/u);
+
 console.log('PASS Web Organizations authority/source contract');
