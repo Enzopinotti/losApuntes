@@ -407,8 +407,101 @@ const Organization = () => {
     }
   };
 
+  const loadUpcomingEvents = async () => {
+    if (!organization || busy) return;
+    const target = organization;
+    const ticket = beginAction();
+    if (!isActionCurrent(ticket)) return;
+    setBusyState({ scopeKey: organizationScopeKey, value: "events-filter" });
+    setErrorState(null);
+
+    try {
+      const page = await organizationsApi.events(
+        target.id,
+        undefined,
+        ticket.signal,
+        new Date().toISOString(),
+      );
+      if (!isActionCurrent(ticket)) return;
+      setUpcomingState({
+        scopeKey: organizationScopeKey,
+        items: appendEvents([], page.items),
+        nextCursor: page.nextCursor,
+        requestedCursors: new Set<string>(),
+        cursorRepeated: false,
+      });
+      setEventViewState({ scopeKey: organizationScopeKey, value: "upcoming" });
+    } catch (nextError) {
+      if (!isActionCurrent(ticket)) return;
+      setErrorState({
+        scopeKey: organizationScopeKey,
+        message: messageFor(nextError),
+      });
+    } finally {
+      if (finishAction(ticket)) {
+        setBusyState({ scopeKey: organizationScopeKey, value: null });
+      }
+    }
+  };
+
+  const showAllEvents = () => {
+    if (busy) return;
+    setEventViewState({ scopeKey: organizationScopeKey, value: "all" });
+  };
+
+  const loadMoreUpcomingEvents = async () => {
+    if (!organization || !upcoming?.nextCursor || busy) return;
+    const target = organization;
+    const requestedCursor = upcoming.nextCursor;
+    const ticket = beginAction();
+    if (!isActionCurrent(ticket)) return;
+    setBusyState({ scopeKey: organizationScopeKey, value: "events-more" });
+    setErrorState(null);
+
+    try {
+      const page = await organizationsApi.events(
+        target.id,
+        requestedCursor,
+        ticket.signal,
+      );
+      if (!isActionCurrent(ticket)) return;
+      const requestedCursors = new Set(upcoming.requestedCursors);
+      const repeated = organizationContentCursorRepeats(
+        requestedCursors,
+        requestedCursor,
+        page.nextCursor,
+      );
+      requestedCursors.add(requestedCursor);
+      setUpcomingState((current) =>
+        current?.scopeKey === organizationScopeKey
+          ? {
+              ...current,
+              items: appendEvents(current.items, page.items),
+              nextCursor: repeated ? null : page.nextCursor,
+              requestedCursors,
+              cursorRepeated: repeated,
+            }
+          : current,
+      );
+    } catch (nextError) {
+      if (!isActionCurrent(ticket)) return;
+      setErrorState({
+        scopeKey: organizationScopeKey,
+        message: messageFor(nextError),
+      });
+    } finally {
+      if (finishAction(ticket)) {
+        setBusyState({ scopeKey: organizationScopeKey, value: null });
+      }
+    }
+  };
+
   const loadMoreEvents = async () => {
-    if (!organization?.eventsNextCursor) return;
+    if (eventView === "upcoming") {
+      await loadMoreUpcomingEvents();
+      return;
+    }
+    if (!organization?.eventsNextCursor || busy) return;
     const target = organization;
     const requestedCursor = target.eventsNextCursor;
     if (!requestedCursor) return;
