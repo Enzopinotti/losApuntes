@@ -211,4 +211,27 @@ assert.match(
   /to=\{`\/organizations\/\$\{encodeURIComponent\(item\.source\.organization\.id\)\}`\}/u,
 );
 
+const organizationAvatarComponentB277 = await read(
+  'apps/web/src/features/organizations/OrganizationAvatar.tsx',
+);
+const organizationAvatarDirectoryB277 = await read(
+  'apps/web/src/pages/Organizations.tsx',
+);
+const organizationAvatarDetailB277 = await read(
+  'apps/web/src/pages/Organization.tsx',
+);
+const organizationAvatarStylesB277 = await read(
+  'apps/web/src/pages/Organizations.scss',
+);
+assert.match(organizationAvatarComponentB277, /PublicProfileAvatar/u);
+assert.match(organizationAvatarDirectoryB277, /<OrganizationAvatar/u);
+assert.match(organizationAvatarDirectoryB277, /avatarUrl=\\{item\\.avatarUrl\\}/u);
+assert.match(organizationAvatarDetailB277, /<OrganizationAvatar/u);
+assert.match(
+  organizationAvatarDetailB277,
+  /avatarUrl=\\{organization\\.avatarUrl\\}/u,
+);
+assert.match(organizationAvatarStylesB277, /\\.organization-public-identity/u);
+assert.match(organizationAvatarStylesB277, /\\.organization-card-main/u);
+
 console.log('PASS Web Organizations authority/source contract');
