@@ -143,7 +143,6 @@ export function MobileOrganizationsDirectoryScreen() {
     items: AcademicCatalogNode[];
   } | null>(null);
 
-
   const sessionKey =
     session.kind === "authenticated"
       ? navigationAuthorityKey(session.user.id, session.session.id)
@@ -291,8 +290,6 @@ export function MobileOrganizationsDirectoryScreen() {
       query: searchQuery,
     });
   };
-
-
 
   return (
     <ProductSurface
