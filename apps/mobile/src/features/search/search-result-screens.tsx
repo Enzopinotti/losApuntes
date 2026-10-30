@@ -221,10 +221,17 @@ function PublicProfileSections({
   const available = new Set<ProfileSection>();
   if (profile.professional?.headline) available.add("professional");
   if (profile.academic) available.add("academic");
-  if (profile.learning?.learningTopics.length || profile.learning?.helpTopics.length) {
+  if (
+    profile.learning?.learningTopics.length ||
+    profile.learning?.helpTopics.length
+  ) {
     available.add("learning");
   }
-  if (profile.skills?.skills.length || profile.skills?.interests.length || profile.skills?.languages.length) {
+  if (
+    profile.skills?.skills.length ||
+    profile.skills?.interests.length ||
+    profile.skills?.languages.length
+  ) {
     available.add("skills");
   }
   if (profile.activities?.length) available.add("activities");
@@ -415,7 +422,10 @@ export function PublicProfileScreen({ profileId }: { profileId: string }) {
                 <Text style={styles.copy}>{data.profile.about.bio}</Text>
               ) : null}
             </View>
-            <PublicProfileSections profile={data.profile} authorityKey={authorityKey} />
+            <PublicProfileSections
+              profile={data.profile}
+              authorityKey={authorityKey}
+            />
             <SocialProfileConnectionAction
               profileId={profileId}
               displayName={data.profile.about?.displayName ?? "este perfil"}
