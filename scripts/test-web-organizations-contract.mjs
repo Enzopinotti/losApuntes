@@ -239,4 +239,18 @@ assert.match(avatarDetailB282, /<OrganizationPublicShareAction/u);
 assert.match(avatarStylesB282, /\.organization-public-identity/u);
 assert.match(avatarStylesB282, /\.organization-card-main/u);
 
+const mobileInstitutionApiB284 = await read('apps/mobile/src/features/organizations/organizations-api.ts');
+const mobileInstitutionCtrlB284 = await read('apps/mobile/src/features/organizations/organizations-controller.ts');
+const mobileInstitutionDirectoryB284 = await read('apps/mobile/src/features/organizations/organizations-directory-screen.tsx');
+assert.match(mobileInstitutionApiB284, /institutionId\?:\s*string/u);
+assert.match(mobileInstitutionApiB284, /if \(input\.institutionId\) query\.set\("institutionId", input\.institutionId\)/u);
+assert.match(mobileInstitutionCtrlB284, /\.\.\.\(input\.institutionId \? \{ institutionId: input\.institutionId \} : \{\}\)/u);
+assert.match(mobileInstitutionDirectoryB284, /filterInstitution\?\.id \?\? "all-institutions"/u);
+assert.match(mobileInstitutionDirectoryB284, /institutionId: filterInstitution\.id/u);
+assert.match(mobileInstitutionDirectoryB284, /mobileAcademicFollowsApi\s*\.search\(\s*"institution", request\.query/u);
+assert.match(mobileInstitutionDirectoryB284, /request\.authorityKey !== authorityKey/u);
+assert.match(mobileInstitutionDirectoryB284, /Buscar institución/u);
+assert.match(mobileInstitutionDirectoryB284, /Quitar filtro de institución/u);
+assert.match(mobileInstitutionDirectoryB284, /<PublicAvatar/u);
+
 console.log('PASS Web Organizations authority/source contract');
