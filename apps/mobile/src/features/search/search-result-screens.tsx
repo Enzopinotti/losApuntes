@@ -246,9 +246,7 @@ function PublicProfileSections({
           {section === "professional" ? (
             <>
               {profile.professional?.headline ? (
-                <Text style={styles.meta}>
-                  {profile.professional.headline}
-                </Text>
+                <Text style={styles.meta}>{profile.professional.headline}</Text>
               ) : null}
             </>
           ) : null}
@@ -274,14 +272,12 @@ function PublicProfileSections({
             <>
               {profile.learning?.learningTopics.length ? (
                 <Text style={styles.meta}>
-                  Está aprendiendo:{" "}
-                  {profile.learning.learningTopics.join(", ")}
+                  Está aprendiendo: {profile.learning.learningTopics.join(", ")}
                 </Text>
               ) : null}
               {profile.learning?.helpTopics.length ? (
                 <Text style={styles.meta}>
-                  Puede ayudar con:{" "}
-                  {profile.learning.helpTopics.join(", ")}
+                  Puede ayudar con: {profile.learning.helpTopics.join(", ")}
                 </Text>
               ) : null}
             </>
