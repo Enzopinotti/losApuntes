@@ -127,6 +127,10 @@ export class OrganizationSearchDto {
   type?: OrganizationType;
 
   @IsOptional()
+  @IsIn(ORGANIZATION_VERIFICATION_STATES)
+  verificationState?: OrganizationVerificationState;
+
+  @IsOptional()
   @IsUUID('4')
   institutionId?: string;
 

@@ -164,6 +164,7 @@ export interface OrganizationStore {
   search(input: {
     q?: string;
     type?: OrganizationType;
+    verificationState?: OrganizationVerificationState;
     institutionId?: string;
     programId?: string;
     limit: number;

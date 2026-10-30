@@ -78,6 +78,7 @@ function models(input: {
   reportRows?: unknown[];
   authoredPostRows?: unknown[];
   authoredEventRows?: unknown[];
+  organizationRows?: unknown[];
 }) {
   const activeSession = session();
   const connection = {
@@ -93,7 +94,9 @@ function models(input: {
       ),
     ),
   };
+  const organizationSearchListQuery = listQuery(input.organizationRows ?? []);
   const organizations = {
+    find: jest.fn(() => organizationSearchListQuery),
     findOne: jest.fn(() => query(input.organization ?? null)),
     findOneAndUpdate: jest.fn(
       (filter: unknown, update: unknown, options?: unknown) => {
@@ -178,6 +181,7 @@ function models(input: {
     activeSession,
     users,
     organizations,
+    organizationSearchListQuery,
     managers,
     audits,
     posts,
@@ -326,6 +330,38 @@ function featureResourceInput() {
     },
   };
 }
+
+describe('MongoOrganizationStore verification-filtered directory', () => {
+  it('keeps the active-only restriction while selecting verified organizations', async () => {
+    const fixture = models({ organizationRows: [] });
+
+    const result = await fixture.store.search({
+      verificationState: 'verified',
+      institutionId: organizationId,
+      limit: 10,
+    });
+
+    expect(result).toEqual({ items: [], hasMore: false });
+    expect(fixture.organizations.find).toHaveBeenCalledWith({
+      $and: [
+        { status: 'active' },
+        { verificationState: 'verified' },
+        { institutionId: organizationId },
+      ],
+    });
+    expect(fixture.organizationSearchListQuery.limit).toHaveBeenCalledWith(11);
+  });
+
+  it('retains active-only filtering when no verification filter is supplied', async () => {
+    const fixture = models({ organizationRows: [] });
+
+    await fixture.store.search({ limit: 10 });
+
+    expect(fixture.organizations.find).toHaveBeenCalledWith({
+      $and: [{ status: 'active' }],
+    });
+  });
+});
 
 describe('MongoOrganizationStore bounded Organization collections', () => {
   it('limits complete managers, links and featured Resources to max+1 sentinels', async () => {

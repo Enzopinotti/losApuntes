@@ -8,6 +8,7 @@ Query:
 
 - `q` optional;
 - `type` optional;
+- `verificationState` optional (`verified` or `unverified` only);
 - `institutionId` optional UUID;
 - `programId` optional UUID;
 - `limit` 1–50;
