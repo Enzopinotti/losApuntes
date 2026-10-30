@@ -313,10 +313,14 @@ export function PublicProfileScreen({ profileId }: { profileId: string }) {
                 <View style={styles.activityList}>
                   <Text style={styles.sectionTitle}>Actividad pública</Text>
                   {data.profile.activities.map((activity) => {
-                    const presentation = publicProfileActivityPresentation(activity);
+                    const presentation =
+                      publicProfileActivityPresentation(activity);
                     return (
                       <View key={activity.id} style={styles.activityCard}>
-                        <Text accessibilityRole="header" style={styles.activityTitle}>
+                        <Text
+                          accessibilityRole="header"
+                          style={styles.activityTitle}
+                        >
                           {activity.title}
                         </Text>
                         <View style={styles.activityDetails}>
