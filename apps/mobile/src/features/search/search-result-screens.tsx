@@ -324,13 +324,19 @@ export function PublicProfileScreen({ profileId }: { profileId: string }) {
                           {activity.title}
                         </Text>
                         <View style={styles.activityDetails}>
-                          <Text style={styles.meta}>{presentation.typeLabel}</Text>
+                          <Text style={styles.meta}>
+                            {presentation.typeLabel}
+                          </Text>
                           {presentation.dateLabel ? (
-                            <Text style={styles.meta}>{presentation.dateLabel}</Text>
+                            <Text style={styles.meta}>
+                              {presentation.dateLabel}
+                            </Text>
                           ) : null}
                         </View>
                         {activity.description ? (
-                          <Text style={styles.copy}>{activity.description}</Text>
+                          <Text style={styles.copy}>
+                            {activity.description}
+                          </Text>
                         ) : null}
                       </View>
                     );
