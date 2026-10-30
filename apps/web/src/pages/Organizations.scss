@@ -89,7 +89,11 @@
 
 .organizations-search {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(180px, 260px) auto;
+  grid-template-columns:
+    minmax(0, 1fr)
+    minmax(180px, 220px)
+    minmax(180px, 220px)
+    auto;
   gap: 0.75rem;
   padding: 1rem;
   margin-bottom: 1rem;
