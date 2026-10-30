@@ -284,4 +284,19 @@ assert.ok(publicPage.includes('setEventViewState(null)'));
 assert.ok(publicPage.includes('setUpcomingState(null)'));
 assert.ok(publicPageStyles.includes('.organization-event-filter[aria-pressed="true"]'));
 
+assert.match(service, /verificationState\\?:\\s*OrganizationVerificationState/u);
+assert.match(service, /query\\.set\\("verificationState", input\\.verificationState\\)/u);
+assert.ok(directory.includes('verificationState || "all-verification-states"'));
+assert.ok(directory.includes('verificationState: verificationState || undefined'));
+assert.equal(
+  (directory.match(/verificationState: verificationState \\|\\| undefined/gu) ?? [])
+    .length,
+  2,
+);
+assert.ok(directory.includes('aria-label="Estado de verificación"'));
+assert.ok(directory.includes('<option value="verified">Verificadas</option>'));
+assert.ok(directory.includes('<option value="unverified">Sin verificar</option>'));
+assert.ok(directory.includes('<OrganizationDirectoryFollowAction'));
+assert.ok(directory.includes('filterInstitution?.id ?? "all-institutions"'));
+
 console.log('PASS Web Organizations authority/source contract');
