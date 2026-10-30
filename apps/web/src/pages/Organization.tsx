@@ -146,6 +146,36 @@ const Organization = () => {
       : null;
   const postsCursorIssue = currentCursorIssues?.posts ?? false;
   const eventsCursorIssue = currentCursorIssues?.events ?? false;
+  const [eventViewState, setEventViewState] = useState<{
+    scopeKey: string;
+    value: "all" | "upcoming";
+  } | null>(null);
+  const eventView =
+    eventViewState?.scopeKey === organizationScopeKey
+      ? eventViewState.value
+      : "all";
+  const [upcomingState, setUpcomingState] = useState<{
+    scopeKey: string;
+    items: OrganizationDetail["events"];
+    nextCursor: string | null;
+    requestedCursors: ReadonlySet<string>;
+    cursorRepeated: boolean;
+  } | null>(null);
+  const upcoming =
+    upcomingState?.scopeKey === organizationScopeKey ? upcomingState : null;
+  const visibleEvents =
+    eventView === "upcoming"
+      ? (upcoming?.items ?? [])
+      : (organization?.events ?? []);
+  const visibleEventsNextCursor =
+    eventView === "upcoming"
+      ? (upcoming?.nextCursor ?? null)
+      : (organization?.eventsNextCursor ?? null);
+  const visibleEventsCursorIssue =
+    eventView === "upcoming"
+      ? (upcoming?.cursorRepeated ?? false)
+      : eventsCursorIssue;
+
   const loadedContentCursors = useRef({
     scopeKey: organizationScopeKey,
     posts: new Set<string>(),
@@ -166,6 +196,8 @@ const Organization = () => {
         events: new Set(),
       };
       setCursorIssueState(null);
+      setEventViewState(null);
+      setUpcomingState(null);
       setOrganizationState({
         scopeKey: organizationScopeKey,
         organization: result.organization,
@@ -375,8 +407,101 @@ const Organization = () => {
     }
   };
 
+  const loadUpcomingEvents = async () => {
+    if (!organization || busy) return;
+    const target = organization;
+    const ticket = beginAction();
+    if (!isActionCurrent(ticket)) return;
+    setBusyState({ scopeKey: organizationScopeKey, value: "events-filter" });
+    setErrorState(null);
+
+    try {
+      const page = await organizationsApi.events(
+        target.id,
+        undefined,
+        ticket.signal,
+        new Date().toISOString(),
+      );
+      if (!isActionCurrent(ticket)) return;
+      setUpcomingState({
+        scopeKey: organizationScopeKey,
+        items: appendEvents([], page.items),
+        nextCursor: page.nextCursor,
+        requestedCursors: new Set<string>(),
+        cursorRepeated: false,
+      });
+      setEventViewState({ scopeKey: organizationScopeKey, value: "upcoming" });
+    } catch (nextError) {
+      if (!isActionCurrent(ticket)) return;
+      setErrorState({
+        scopeKey: organizationScopeKey,
+        message: messageFor(nextError),
+      });
+    } finally {
+      if (finishAction(ticket)) {
+        setBusyState({ scopeKey: organizationScopeKey, value: null });
+      }
+    }
+  };
+
+  const showAllEvents = () => {
+    if (busy) return;
+    setEventViewState({ scopeKey: organizationScopeKey, value: "all" });
+  };
+
+  const loadMoreUpcomingEvents = async () => {
+    if (!organization || !upcoming?.nextCursor || busy) return;
+    const target = organization;
+    const requestedCursor = upcoming.nextCursor;
+    const ticket = beginAction();
+    if (!isActionCurrent(ticket)) return;
+    setBusyState({ scopeKey: organizationScopeKey, value: "events-more" });
+    setErrorState(null);
+
+    try {
+      const page = await organizationsApi.events(
+        target.id,
+        requestedCursor,
+        ticket.signal,
+      );
+      if (!isActionCurrent(ticket)) return;
+      const requestedCursors = new Set(upcoming.requestedCursors);
+      const repeated = organizationContentCursorRepeats(
+        requestedCursors,
+        requestedCursor,
+        page.nextCursor,
+      );
+      requestedCursors.add(requestedCursor);
+      setUpcomingState((current) =>
+        current?.scopeKey === organizationScopeKey
+          ? {
+              ...current,
+              items: appendEvents(current.items, page.items),
+              nextCursor: repeated ? null : page.nextCursor,
+              requestedCursors,
+              cursorRepeated: repeated,
+            }
+          : current,
+      );
+    } catch (nextError) {
+      if (!isActionCurrent(ticket)) return;
+      setErrorState({
+        scopeKey: organizationScopeKey,
+        message: messageFor(nextError),
+      });
+    } finally {
+      if (finishAction(ticket)) {
+        setBusyState({ scopeKey: organizationScopeKey, value: null });
+      }
+    }
+  };
+
   const loadMoreEvents = async () => {
-    if (!organization?.eventsNextCursor) return;
+    if (eventView === "upcoming") {
+      await loadMoreUpcomingEvents();
+      return;
+    }
+    if (!organization?.eventsNextCursor || busy) return;
     const target = organization;
     const requestedCursor = target.eventsNextCursor;
     if (!requestedCursor) return;
@@ -780,11 +905,39 @@ const Organization = () => {
 
         <section className="organizations-card organizations-wide">
           <h2>Eventos</h2>
-          {organization.events.length === 0 ? (
-            <p>No hay eventos publicados.</p>
+          <div
+            className="organization-event-filters"
+            role="group"
+            aria-label="Filtrar eventos"
+          >
+            <button
+              type="button"
+              className="secondary organization-event-filter"
+              aria-pressed={eventView === "upcoming"}
+              disabled={Boolean(busy)}
+              onClick={() => void loadUpcomingEvents()}
+            >
+              {busy === "events-filter" ? "Cargando…" : "Próximos"}
+            </button>
+            <button
+              type="button"
+              className="secondary organization-event-filter"
+              aria-pressed={eventView === "all"}
+              disabled={Boolean(busy)}
+              onClick={showAllEvents}
+            >
+              Todos
+            </button>
+          </div>
+          {visibleEvents.length === 0 ? (
+            <p>
+              {eventView === "upcoming"
+                ? "No hay próximos eventos."
+                : "No hay eventos publicados."}
+            </p>
           ) : (
             <div className="organization-content-list">
-              {organization.events.map((event) => (
+              {visibleEvents.map((event) => (
                 <article key={event.id}>
                   <h3>{event.title}</h3>
                   {event.description && <p>{event.description}</p>}
@@ -834,17 +987,17 @@ const Organization = () => {
               ))}
             </div>
           )}
-          {organization.eventsNextCursor && (
+          {visibleEventsNextCursor && (
             <button
               type="button"
               className="secondary"
-              disabled={busy === "events-more"}
+              disabled={Boolean(busy)}
               onClick={() => void loadMoreEvents()}
             >
               {busy === "events-more" ? "Cargando…" : "Cargar más eventos"}
             </button>
           )}
-          {eventsCursorIssue && (
+          {visibleEventsCursorIssue && (
             <>
               <p className="organizations-error" role="alert">
                 Recibimos un evento repetido y detuvimos la lista. Se
@@ -854,7 +1007,11 @@ const Organization = () => {
                 type="button"
                 className="secondary"
                 disabled={busy !== null}
-                onClick={() => void refreshEvents()}
+                onClick={() =>
+                  void (eventView === "upcoming"
+                    ? loadUpcomingEvents()
+                    : refreshEvents())
+                }
               >
                 {busy === "events-refresh"
                   ? "Actualizando…"
