@@ -7,6 +7,7 @@ import type {
   OrganizationManagerRole,
   OrganizationPost,
   OrganizationType,
+  OrganizationVerificationState,
 } from "../interfaces";
 
 type ErrorEnvelope = {
@@ -122,6 +123,7 @@ export const organizationsApi = {
     input: {
       q?: string;
       type?: OrganizationType;
+      verificationState?: OrganizationVerificationState;
       institutionId?: string;
       cursor?: string;
     },
@@ -130,6 +132,8 @@ export const organizationsApi = {
     const query = new URLSearchParams({ limit: "25" });
     if (input.q) query.set("q", input.q);
     if (input.type) query.set("type", input.type);
+    if (input.verificationState)
+      query.set("verificationState", input.verificationState);
     if (input.institutionId) query.set("institutionId", input.institutionId);
     if (input.cursor) query.set("cursor", input.cursor);
     return request<{ items: OrganizationCard[]; nextCursor: string | null }>(
