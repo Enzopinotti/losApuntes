@@ -30,6 +30,7 @@ import {
 
 import { mobileSearchApi } from "./search-runtime";
 import { publicProfileAcademicSummary } from "./public-profile-academic-summary";
+import { PublicProfileAvatar } from "./public-profile-avatar";
 import { SharePublicProfileAction } from "./share-public-profile-action";
 import { useFencedDetail } from "./use-fenced-detail";
 
@@ -256,9 +257,15 @@ export function PublicProfileScreen({ profileId }: { profileId: string }) {
         {(data: PublicProfileResponse) => (
           <View style={styles.profileContent}>
             <View style={styles.card}>
-              <Text accessibilityRole="header" style={styles.title}>
-                {data.profile.about?.displayName ?? "Perfil"}
-              </Text>
+              <View style={styles.profileHeading}>
+                <PublicProfileAvatar
+                  displayName={data.profile.about?.displayName ?? "Perfil"}
+                  avatarUrl={data.profile.about?.avatarUrl}
+                />
+                <Text accessibilityRole="header" style={styles.title}>
+                  {data.profile.about?.displayName ?? "Perfil"}
+                </Text>
+              </View>
               {data.profile.about?.bio ? (
                 <Text style={styles.copy}>{data.profile.about.bio}</Text>
               ) : null}
@@ -339,6 +346,11 @@ export function PublicProfileScreen({ profileId }: { profileId: string }) {
 
 const styles = StyleSheet.create({
   profileContent: {
+    gap: 12,
+  },
+  profileHeading: {
+    flexDirection: "row",
+    alignItems: "center",
     gap: 12,
   },
   backButton: {
