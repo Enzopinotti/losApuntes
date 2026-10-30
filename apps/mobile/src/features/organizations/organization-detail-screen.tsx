@@ -203,7 +203,9 @@ export function MobileOrganizationDetailScreen({
     if (!organization) return;
     const url = mobileOrganizationPublicLink(organization.id);
     if (!url) {
-      setShareError("No pudimos crear un enlace público para esta organización.");
+      setShareError(
+        "No pudimos crear un enlace público para esta organización.",
+      );
       return;
     }
 
