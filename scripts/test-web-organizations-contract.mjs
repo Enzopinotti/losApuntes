@@ -284,12 +284,12 @@ assert.ok(publicPage.includes('setEventViewState(null)'));
 assert.ok(publicPage.includes('setUpcomingState(null)'));
 assert.ok(publicPageStyles.includes('.organization-event-filter[aria-pressed="true"]'));
 
-assert.match(service, /verificationState\\?:\\s*OrganizationVerificationState/u);
-assert.match(service, /query\\.set\\("verificationState", input\\.verificationState\\)/u);
+assert.match(service, /verificationState\?:\s*OrganizationVerificationState/u);
+assert.match(service, /query\.set\("verificationState", input\.verificationState\)/u);
 assert.ok(directory.includes('verificationState || "all-verification-states"'));
 assert.ok(directory.includes('verificationState: verificationState || undefined'));
 assert.equal(
-  (directory.match(/verificationState: verificationState \\|\\| undefined/gu) ?? [])
+  (directory.match(/verificationState: verificationState \|\| undefined/gu) ?? [])
     .length,
   2,
 );
