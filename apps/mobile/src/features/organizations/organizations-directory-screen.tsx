@@ -25,6 +25,7 @@ import { mobileAcademicFollowsApi } from "@/features/academic/academic-follows-r
 import {
   MobileOrganizationsDirectoryController,
   type MobileOrganizationsDirectorySnapshot,
+  type MobileOrganizationsDirectoryFollowAction,
   type MobileOrganizationsFailure,
 } from "./organizations-controller";
 import { normalizeOrganizationQuery } from "./organizations-input-policy";
@@ -85,41 +86,80 @@ function failureMessage(failure: MobileOrganizationsFailure): string {
 
 function OrganizationRow({
   organization,
+  followAction,
+  followActionBusy,
   onOpen,
+  onToggleFollow,
 }: {
   organization: OrganizationCard;
+  followAction: MobileOrganizationsDirectoryFollowAction | null;
+  followActionBusy: boolean;
   onOpen: () => void;
+  onToggleFollow: () => void;
 }) {
+  const following = organization.viewer?.following === true;
+  const action =
+    followAction?.organizationId === organization.id ? followAction : null;
+  const busy = action?.status === "loading";
+
   return (
-    <Pressable
-      accessibilityRole="button"
-      accessibilityLabel={`Abrir organización ${organization.name}`}
-      onPress={onOpen}
-      style={styles.row}
-    >
-      <View style={styles.rowHeading}>
-        <PublicAvatar
-          avatarUrl={organization.avatarUrl}
-          displayName={organization.name}
-          size="small"
-        />
-        <Text style={styles.rowTitle}>{organization.name}</Text>
-        {organization.verificationState === "verified" ? (
-          <Text
-            accessibilityLabel="Organización verificada"
-            style={styles.badge}
-          >
-            Verificada
-          </Text>
-        ) : null}
-      </View>
-      <Text style={styles.meta}>{typeLabel[organization.type]}</Text>
-      <Text style={styles.meta}>{organization.institution.name}</Text>
-      {organization.viewer?.following ? (
-        <Text style={styles.following}>La seguís</Text>
+    <View style={styles.row}>
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel={`Abrir organización ${organization.name}`}
+        onPress={onOpen}
+        style={styles.rowOpen}
+      >
+        <View style={styles.rowHeading}>
+          <PublicAvatar
+            avatarUrl={organization.avatarUrl}
+            displayName={organization.name}
+            size="small"
+          />
+          <Text style={styles.rowTitle}>{organization.name}</Text>
+          {organization.verificationState === "verified" ? (
+            <Text
+              accessibilityLabel="Organización verificada"
+              style={styles.badge}
+            >
+              Verificada
+            </Text>
+          ) : null}
+        </View>
+        <Text style={styles.meta}>{typeLabel[organization.type]}</Text>
+        <Text style={styles.meta}>{organization.institution.name}</Text>
+        {following ? <Text style={styles.following}>La seguís</Text> : null}
+        <Text style={styles.action}>Ver organización</Text>
+      </Pressable>
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel={`${following ? "Dejar de seguir" : "Seguir"} ${organization.name}`}
+        accessibilityState={{ busy, disabled: followActionBusy }}
+        disabled={followActionBusy}
+        onPress={onToggleFollow}
+        style={[styles.followButton, following && styles.followingButton]}
+      >
+        <Text
+          style={[
+            styles.followButtonText,
+            following && styles.followingButtonText,
+          ]}
+        >
+          {busy ? "Actualizando…" : following ? "Dejar de seguir" : "Seguir"}
+        </Text>
+      </Pressable>
+      {action?.message ? (
+        <Text
+          accessibilityLiveRegion={
+            action.status === "failure" ? undefined : "polite"
+          }
+          accessibilityRole={action.status === "failure" ? "alert" : "text"}
+          style={action.status === "failure" ? styles.error : styles.following}
+        >
+          {action.message}
+        </Text>
       ) : null}
-      <Text style={styles.action}>Ver organización</Text>
-    </Pressable>
+    </View>
   );
 }
 
@@ -276,6 +316,9 @@ export function MobileOrganizationsDirectoryScreen() {
     snapshot.kind !== "idle" && snapshot.authorityKey === authorityKey
       ? snapshot
       : null;
+  const directoryActionBusy =
+    current?.kind === "ready" &&
+    (current.loadingMore || current.followAction?.status === "loading");
 
   const applySearch = () => {
     const result = normalizeOrganizationQuery(queryDraft);
@@ -531,11 +574,19 @@ export function MobileOrganizationsDirectoryScreen() {
                 <OrganizationRow
                   key={organization.id}
                   organization={organization}
+                  followAction={current.followAction}
+                  followActionBusy={directoryActionBusy}
                   onOpen={() =>
                     router.push({
                       pathname: "/organizations/[organizationId]",
                       params: { organizationId: organization.id },
                     })
+                  }
+                  onToggleFollow={() =>
+                    void controller.toggleFollow(
+                      current.authorityKey,
+                      organization.id,
+                    )
                   }
                 />
               ))
@@ -569,8 +620,10 @@ export function MobileOrganizationsDirectoryScreen() {
           {current.page.nextCursor ? (
             <Pressable
               accessibilityRole="button"
-              accessibilityState={{ disabled: current.loadingMore }}
-              disabled={current.loadingMore}
+              accessibilityState={{
+                disabled: current.loadingMore || directoryActionBusy,
+              }}
+              disabled={current.loadingMore || directoryActionBusy}
               onPress={() => void controller.loadMore(current.authorityKey)}
               style={[
                 styles.secondaryButton,
@@ -666,6 +719,9 @@ const styles = StyleSheet.create({
     borderTopColor: "#e2e2e8",
     paddingTop: 12,
   },
+  rowOpen: {
+    gap: 5,
+  },
   rowHeading: {
     flexDirection: "row",
     alignItems: "center",
@@ -701,6 +757,28 @@ const styles = StyleSheet.create({
     color: "#17643a",
     fontSize: 12,
     fontWeight: "700",
+  },
+  followButton: {
+    minHeight: 46,
+    alignItems: "center",
+    justifyContent: "center",
+    alignSelf: "flex-start",
+    borderWidth: 1,
+    borderColor: "#43366a",
+    borderRadius: 12,
+    paddingHorizontal: 16,
+  },
+  followingButton: {
+    borderColor: "#c9cad4",
+    backgroundColor: "#f8f8fb",
+  },
+  followButtonText: {
+    color: "#43366a",
+    fontSize: 14,
+    fontWeight: "700",
+  },
+  followingButtonText: {
+    color: "#34343f",
   },
   action: {
     color: "#43366a",
