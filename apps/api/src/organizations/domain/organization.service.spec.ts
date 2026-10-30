@@ -1027,6 +1027,7 @@ describe('OrganizationService', () => {
       {
         q: ' Centro ',
         institutionId,
+        verificationState: 'verified',
         limit: 10,
       },
     );
@@ -1034,6 +1035,7 @@ describe('OrganizationService', () => {
     expect(organizationStore.search.mock.calls[0]?.[0]).toMatchObject({
       q: 'centro',
       institutionId,
+      verificationState: 'verified',
       limit: 10,
     });
     expect(result.items[0]?.name).toBe('Centro de Estudiantes');
