@@ -1,0 +1,36 @@
+name: B290 Mobile directory follow focused acceptance
+on:
+  pull_request:
+    paths:
+      - apps/mobile/src/features/organizations/organizations-controller.ts
+      - apps/mobile/src/features/organizations/organizations-directory-screen.tsx
+      - apps/mobile/test/organizations-controller.test.ts
+      - .github/workflows/b290-mobile-directory-follow.yml
+permissions:
+  contents: read
+jobs:
+  verify-directory-follow:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+      - uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version-file: .nvmrc
+      - run: pnpm install --frozen-lockfile --filter @losapuntes/mobile...
+      - name: Check exact head and Mobile tests
+        run: |
+          pnpm --filter @losapuntes/mobile test
+          pnpm --filter @losapuntes/mobile check:types
+          pnpm --filter @losapuntes/mobile lint
+          pnpm --filter @losapuntes/mobile format:check
+      - name: Read-only formatter differences if failing
+        if: failure()
+        run: |
+          for file in apps/mobile/src/features/organizations/organizations-controller.ts apps/mobile/src/features/organizations/organizations-directory-screen.tsx apps/mobile/test/organizations-controller.test.ts; do
+            pnpm --filter @losapuntes/mobile exec prettier "../../$file" | diff -u "$file" - || true
+          done
