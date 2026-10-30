@@ -140,6 +140,7 @@ export class MobileOrganizationsDirectoryController {
     this.input = {
       ...(input.q ? { q: input.q } : {}),
       ...(input.type ? { type: input.type } : {}),
+      ...(input.institutionId ? { institutionId: input.institutionId } : {}),
     };
     this.requestedCursors.clear();
     const operation = this.begin(authorityKey);
