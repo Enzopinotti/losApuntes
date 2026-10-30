@@ -119,12 +119,18 @@ export function isOrganizationsApiError(
 
 export const organizationsApi = {
   search: (
-    input: { q?: string; type?: OrganizationType; cursor?: string },
+    input: {
+      q?: string;
+      type?: OrganizationType;
+      institutionId?: string;
+      cursor?: string;
+    },
     signal?: AbortSignal,
   ) => {
     const query = new URLSearchParams({ limit: "25" });
     if (input.q) query.set("q", input.q);
     if (input.type) query.set("type", input.type);
+    if (input.institutionId) query.set("institutionId", input.institutionId);
     if (input.cursor) query.set("cursor", input.cursor);
     return request<{ items: OrganizationCard[]; nextCursor: string | null }>(
       `/organizations?${query.toString()}`,
