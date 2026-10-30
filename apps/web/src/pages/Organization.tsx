@@ -905,11 +905,39 @@ const Organization = () => {
 
         <section className="organizations-card organizations-wide">
           <h2>Eventos</h2>
-          {organization.events.length === 0 ? (
-            <p>No hay eventos publicados.</p>
+          <div
+            className="organization-event-filters"
+            role="group"
+            aria-label="Filtrar eventos"
+          >
+            <button
+              type="button"
+              className="secondary organization-event-filter"
+              aria-pressed={eventView === "upcoming"}
+              disabled={Boolean(busy)}
+              onClick={() => void loadUpcomingEvents()}
+            >
+              {busy === "events-filter" ? "Cargando…" : "Próximos"}
+            </button>
+            <button
+              type="button"
+              className="secondary organization-event-filter"
+              aria-pressed={eventView === "all"}
+              disabled={Boolean(busy)}
+              onClick={showAllEvents}
+            >
+              Todos
+            </button>
+          </div>
+          {visibleEvents.length === 0 ? (
+            <p>
+              {eventView === "upcoming"
+                ? "No hay próximos eventos."
+                : "No hay eventos publicados."}
+            </p>
           ) : (
             <div className="organization-content-list">
-              {organization.events.map((event) => (
+              {visibleEvents.map((event) => (
                 <article key={event.id}>
                   <h3>{event.title}</h3>
                   {event.description && <p>{event.description}</p>}
@@ -959,17 +987,17 @@ const Organization = () => {
               ))}
             </div>
           )}
-          {organization.eventsNextCursor && (
+          {visibleEventsNextCursor && (
             <button
               type="button"
               className="secondary"
-              disabled={busy === "events-more"}
+              disabled={Boolean(busy)}
               onClick={() => void loadMoreEvents()}
             >
               {busy === "events-more" ? "Cargando…" : "Cargar más eventos"}
             </button>
           )}
-          {eventsCursorIssue && (
+          {visibleEventsCursorIssue && (
             <>
               <p className="organizations-error" role="alert">
                 Recibimos un evento repetido y detuvimos la lista. Se
@@ -979,7 +1007,11 @@ const Organization = () => {
                 type="button"
                 className="secondary"
                 disabled={busy !== null}
-                onClick={() => void refreshEvents()}
+                onClick={() =>
+                  void (eventView === "upcoming"
+                    ? loadUpcomingEvents()
+                    : refreshEvents())
+                }
               >
                 {busy === "events-refresh"
                   ? "Actualizando…"
