@@ -15,7 +15,7 @@ test("organization sharing requires a canonical public link and explicit action"
     screen,
     /mobileOrganizationPublicLink\(current\.organization\.id\)/u,
   );
-  assert.match(screen, /accessibilityLabel=\{\`Compartir/u);
+  assert.ok(screen.includes("accessibilityLabel={`Compartir "));
   assert.match(screen, /Share\.share\(\{ message:/u);
   assert.match(screen, /setShareError\(/u);
   assert.doesNotMatch(
