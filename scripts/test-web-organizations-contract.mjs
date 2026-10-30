@@ -43,7 +43,7 @@ assert.doesNotMatch(service, /localStorage|sessionStorage/u);
 assert.doesNotMatch(service, /Authorization\s*:/iu);
 assert.doesNotMatch(service, /Bearer\s+/u);
 assert.match(service, /posts:\s*\(id:\s*string, cursor\?/u);
-assert.match(service, /events:\s*\(id:\s*string, cursor\?/u);
+assert.match(service, /events:\s*\(\s*id:\s*string,\s*cursor\?/u);
 assert.match(service, /archive:\s*\(/u);
 assert.match(service, /\/organizations\/\$\{encodeURIComponent\(id\)\}\/archive/u);
 assert.match(service, /expectedManagementRevision/u);
@@ -142,7 +142,7 @@ assert.match(publicPage, /organizationsApi\.posts\(/u);
 assert.match(publicPage, /organizationsApi\.events\(/u);
 assert.equal(
   (publicPage.match(/organizationContentCursorRepeats\(/gu) ?? []).length,
-  2,
+  3,
 );
 assert.match(publicPage, /postsCursorIssue/u);
 assert.match(publicPage, /eventsCursorIssue/u);
@@ -268,5 +268,20 @@ assert.match(mobileInstitutionDirectoryB284, /request\.authorityKey !== authorit
 assert.match(mobileInstitutionDirectoryB284, /Buscar institución/u);
 assert.match(mobileInstitutionDirectoryB284, /Quitar filtro de institución/u);
 assert.match(mobileInstitutionDirectoryB284, /<PublicAvatar/u);
+
+assert.match(service, /from\?:\s*string/u);
+assert.ok(service.includes('if (from && !cursor) query.set("from", from)'));
+assert.ok(publicPage.includes('aria-label="Filtrar eventos"'));
+assert.ok(publicPage.includes('aria-pressed={eventView === "upcoming"}'));
+assert.ok(publicPage.includes('aria-pressed={eventView === "all"}'));
+assert.ok(publicPage.includes('new Date().toISOString()'));
+assert.ok(publicPage.includes('No hay próximos eventos.'));
+assert.ok(publicPage.includes('visibleEventsNextCursor'));
+assert.ok(publicPage.includes('organizationContentCursorRepeats('));
+assert.ok(publicPage.includes('requestedCursors: new Set<string>()'));
+assert.ok(publicPage.includes('cursorRepeated: repeated'));
+assert.ok(publicPage.includes('setEventViewState(null)'));
+assert.ok(publicPage.includes('setUpcomingState(null)'));
+assert.ok(publicPageStyles.includes('.organization-event-filter[aria-pressed="true"]'));
 
 console.log('PASS Web Organizations authority/source contract');
