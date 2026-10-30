@@ -1,4 +1,8 @@
-import type { OrganizationCard, OrganizationType } from "@losapuntes/contracts";
+import type {
+  AcademicCatalogNode,
+  OrganizationCard,
+  OrganizationType,
+} from "@losapuntes/contracts";
 import { Redirect, useIsFocused, useRouter } from "expo-router";
 import {
   ActivityIndicator,
@@ -15,6 +19,7 @@ import { navigationAuthorityKey } from "@/features/navigation/product-navigation
 import { ProductSurface } from "@/features/navigation/product-surface";
 import { PublicAvatar } from "@/features/profile/public-avatar";
 import { useSession } from "@/features/session/session-provider";
+import { mobileAcademicFollowsApi } from "@/features/academic/academic-follows-runtime";
 
 import {
   MobileOrganizationsDirectoryController,
@@ -123,14 +128,47 @@ export function MobileOrganizationsDirectoryScreen() {
   const [query, setQuery] = useState("");
   const [queryError, setQueryError] = useState<string | null>(null);
   const [type, setType] = useState<OrganizationType | null>(null);
+  const [filterInstitutionQuery, setFilterInstitutionQuery] = useState("");
+  const [filterInstitutionSelection, setFilterInstitutionSelection] = useState<{
+    sessionKey: string;
+    institution: Pick<AcademicCatalogNode, "id" | "name">;
+  } | null>(null);
+  const [institutionSearchRequest, setInstitutionSearchRequest] = useState<{
+    authorityKey: string;
+    query: string;
+  } | null>(null);
+  const [institutionSearchState, setInstitutionSearchState] = useState<{
+    scopeKey: string;
+    phase: "loading" | "ready" | "failure";
+    items: AcademicCatalogNode[];
+  } | null>(null);
+
 
   const sessionKey =
     session.kind === "authenticated"
       ? navigationAuthorityKey(session.user.id, session.session.id)
       : null;
+  const filterInstitution =
+    filterInstitutionSelection?.sessionKey === sessionKey
+      ? filterInstitutionSelection.institution
+      : null;
   const authorityKey =
     sessionKey && isFocused && appState === "active"
-      ? [sessionKey, "organizations", query || "all", type ?? "all"].join(":")
+      ? [
+          sessionKey,
+          "organizations",
+          query || "all",
+          type ?? "all",
+          filterInstitution?.id ?? "all-institutions",
+        ].join(":")
+      : null;
+  const institutionFilterSearchScopeKey = [
+    authorityKey ?? "inactive-organizations",
+    filterInstitutionQuery.trim(),
+  ].join(":");
+  const institutionSearch =
+    institutionSearchState?.scopeKey === institutionFilterSearchScopeKey
+      ? institutionSearchState
       : null;
 
   useEffect(() => controller.subscribe(setSnapshot), [controller]);
@@ -150,9 +188,66 @@ export function MobileOrganizationsDirectoryScreen() {
     void controller.load(authorityKey, {
       ...(query ? { q: query } : {}),
       ...(type ? { type } : {}),
+      ...(filterInstitution ? { institutionId: filterInstitution.id } : {}),
     });
     return () => controller.suspend(authorityKey);
-  }, [authorityKey, controller, query, sessionKey, type]);
+  }, [
+    authorityKey,
+    controller,
+    filterInstitution?.id,
+    query,
+    sessionKey,
+    type,
+  ]);
+
+  useEffect(() => {
+    const request = institutionSearchRequest;
+    if (
+      !authorityKey ||
+      !request ||
+      request.authorityKey !== authorityKey ||
+      request.query !== filterInstitutionQuery.trim()
+    ) {
+      return;
+    }
+
+    const abortController = new AbortController();
+    let current = true;
+    setInstitutionSearchState({
+      scopeKey: institutionFilterSearchScopeKey,
+      phase: "loading",
+      items: [],
+    });
+
+    void mobileAcademicFollowsApi
+      .search("institution", request.query, undefined, abortController.signal)
+      .then((result) => {
+        if (!current) return;
+        setInstitutionSearchState({
+          scopeKey: institutionFilterSearchScopeKey,
+          phase: "ready",
+          items: result.items,
+        });
+      })
+      .catch(() => {
+        if (!current || abortController.signal.aborted) return;
+        setInstitutionSearchState({
+          scopeKey: institutionFilterSearchScopeKey,
+          phase: "failure",
+          items: [],
+        });
+      });
+
+    return () => {
+      current = false;
+      abortController.abort();
+    };
+  }, [
+    authorityKey,
+    filterInstitutionQuery,
+    institutionFilterSearchScopeKey,
+    institutionSearchRequest,
+  ]);
 
   useEffect(
     () => () => {
@@ -184,8 +279,20 @@ export function MobileOrganizationsDirectoryScreen() {
     void controller.load(authorityKey, {
       ...(query ? { q: query } : {}),
       ...(type ? { type } : {}),
+      ...(filterInstitution ? { institutionId: filterInstitution.id } : {}),
     });
   };
+
+  const searchFilterInstitutions = () => {
+    const searchQuery = filterInstitutionQuery.trim();
+    if (searchQuery.length < 2 || !authorityKey) return;
+    setInstitutionSearchRequest({
+      authorityKey,
+      query: searchQuery,
+    });
+  };
+
+
 
   return (
     <ProductSurface
@@ -250,6 +357,103 @@ export function MobileOrganizationsDirectoryScreen() {
             );
           })}
         </View>
+      </View>
+
+      <View style={styles.card}>
+        <Text style={styles.label}>Filtrar por institución</Text>
+        <TextInput
+          accessibilityLabel="Buscar institución para filtrar organizaciones"
+          autoCorrect={false}
+          maxLength={120}
+          onChangeText={(value) => {
+            setFilterInstitutionQuery(value);
+            setFilterInstitutionSelection(null);
+            setInstitutionSearchRequest(null);
+            setInstitutionSearchState(null);
+          }}
+          onSubmitEditing={searchFilterInstitutions}
+          placeholder="Buscar universidad"
+          returnKeyType="search"
+          style={styles.input}
+          value={filterInstitutionQuery}
+        />
+        <Pressable
+          accessibilityRole="button"
+          accessibilityState={{
+            busy: institutionSearch?.phase === "loading",
+            disabled:
+              filterInstitutionQuery.trim().length < 2 ||
+              institutionSearch?.phase === "loading",
+          }}
+          disabled={
+            filterInstitutionQuery.trim().length < 2 ||
+            institutionSearch?.phase === "loading"
+          }
+          onPress={searchFilterInstitutions}
+          style={styles.secondaryButton}
+        >
+          <Text style={styles.secondaryButtonText}>
+            {institutionSearch?.phase === "loading"
+              ? "Buscando…"
+              : "Buscar institución"}
+          </Text>
+        </Pressable>
+        {filterInstitution ? (
+          <View style={styles.selectedInstitution}>
+            <Text style={styles.following}>
+              Filtro activo: {filterInstitution.name}
+            </Text>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Quitar filtro de institución"
+              onPress={() => {
+                setFilterInstitutionSelection(null);
+                setFilterInstitutionQuery("");
+                setInstitutionSearchRequest(null);
+                setInstitutionSearchState(null);
+              }}
+              style={styles.secondaryButton}
+            >
+              <Text style={styles.secondaryButtonText}>Quitar filtro</Text>
+            </Pressable>
+          </View>
+        ) : null}
+        {institutionSearch?.phase === "failure" ? (
+          <Text accessibilityRole="alert" style={styles.error}>
+            No pudimos buscar instituciones. Revisá la conexión e intentá de
+            nuevo.
+          </Text>
+        ) : institutionSearch?.phase === "ready" &&
+          institutionSearch.items.length === 0 ? (
+          <Text accessibilityLiveRegion="polite" style={styles.meta}>
+            No encontramos instituciones con ese nombre.
+          </Text>
+        ) : null}
+        {institutionSearch?.phase === "ready" &&
+        institutionSearch.items.length > 0 ? (
+          <View style={styles.institutionOptions}>
+            {institutionSearch.items.map((option) => (
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel={`Seleccionar institución ${option.name}`}
+                key={option.id}
+                onPress={() => {
+                  if (!sessionKey) return;
+                  setFilterInstitutionSelection({
+                    sessionKey,
+                    institution: { id: option.id, name: option.name },
+                  });
+                  setFilterInstitutionQuery(option.name);
+                  setInstitutionSearchRequest(null);
+                  setInstitutionSearchState(null);
+                }}
+                style={styles.institutionOption}
+              >
+                <Text style={styles.secondaryButtonText}>{option.name}</Text>
+              </Pressable>
+            ))}
+          </View>
+        ) : null}
       </View>
 
       {!current || current.kind === "loading" ? (
@@ -368,10 +572,27 @@ const styles = StyleSheet.create({
     color: "#20202a",
     backgroundColor: "#ffffff",
   },
+  selectedInstitution: {
+    flexDirection: "row",
+    alignItems: "center",
+    flexWrap: "wrap",
+    gap: 8,
+  },
   filters: {
     flexDirection: "row",
     flexWrap: "wrap",
     gap: 7,
+  },
+  institutionOptions: {
+    gap: 6,
+  },
+  institutionOption: {
+    minHeight: 46,
+    justifyContent: "center",
+    borderWidth: 1,
+    borderColor: "#c9cad4",
+    borderRadius: 12,
+    paddingHorizontal: 12,
   },
   filter: {
     minHeight: 42,
