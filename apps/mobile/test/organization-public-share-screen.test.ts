@@ -3,14 +3,23 @@ import test from "node:test";
 import { readFileSync } from "node:fs";
 
 const screen = readFileSync(
-  new URL("../src/features/organizations/organization-detail-screen.tsx", import.meta.url),
+  new URL(
+    "../src/features/organizations/organization-detail-screen.tsx",
+    import.meta.url,
+  ),
   "utf8",
 );
 
-test("organization sharing requires a canonical public deep link and user action", () => {
-  assert.match(screen, /mobileOrganizationPublicLink\(current\.organization\.id\)/u);
-  assert.match(screen, /accessibilityLabel=\{\`Compartir \$\{current\.organization\.name\}\`\}/u);
+test("organization sharing requires a canonical public link and explicit action", () => {
+  assert.match(
+    screen,
+    /mobileOrganizationPublicLink\(current\.organization\.id\)/u,
+  );
+  assert.match(screen, /accessibilityLabel=\{\`Compartir/u);
   assert.match(screen, /Share\.share\(\{ message:/u);
   assert.match(screen, /setShareError\(/u);
-  assert.doesNotMatch(screen, /Share\.share\(\{ message:\s*(?:session|credential|token)/u);
+  assert.doesNotMatch(
+    screen,
+    /Share\.share\(\{ message:\s*(?:session|credential|token)/u,
+  );
 });
