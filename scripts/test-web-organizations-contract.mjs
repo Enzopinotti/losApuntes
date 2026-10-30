@@ -142,7 +142,7 @@ assert.match(publicPage, /organizationsApi\.posts\(/u);
 assert.match(publicPage, /organizationsApi\.events\(/u);
 assert.equal(
   (publicPage.match(/organizationContentCursorRepeats\(/gu) ?? []).length,
-  2,
+  3,
 );
 assert.match(publicPage, /postsCursorIssue/u);
 assert.match(publicPage, /eventsCursorIssue/u);
