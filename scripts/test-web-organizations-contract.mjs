@@ -65,10 +65,21 @@ assert.match(
 
 const directory = await read('apps/web/src/pages/Organizations.tsx');
 assert.match(directory, /useAsyncAuthorityFence/u);
-assert.equal((directory.match(/useAsyncAuthorityFence\(/gu) ?? []).length, 3);
+assert.equal((directory.match(/useAsyncAuthorityFence\(/gu) ?? []).length, 4);
 assert.match(directory, /user\?\.id/u);
 assert.match(directory, /session\?\.id/u);
 assert.match(directory, /directoryScopeKey/u);
+assert.match(service, /institutionId\?:\s*string/u);
+assert.match(service, /if \(input\.institutionId\) query\.set\("institutionId", input\.institutionId\)/u);
+assert.match(directory, /filterInstitutionSearchScopeKey/u);
+assert.match(directory, /filterInstitution\?\.id \?\? "all-institutions"/u);
+assert.match(directory, /institutionId:\s*filterInstitution\?\.id/u);
+assert.match(directory, /filterInstitution\?\.id,\s*listState/u);
+assert.match(directory, /organizationsApi\.searchInstitutions\(\s*filterInstitutionQuery\.trim\(\),\s*ticket\.signal/u);
+assert.match(directory, /id="organizations-filter-institution"/u);
+assert.match(directory, /No encontramos instituciones con ese nombre\./u);
+assert.match(directory, /setFilterInstitutionSelection\(\{\s*authScopeKey,\s*institution: option/u);
+assert.match(directory, /Quitar filtro/u);
 assert.match(service, /if \(input\.cursor\) query\.set\("cursor", input\.cursor\)/u);
 assert.match(directory, /requestedCursorsRef\.current/u);
 assert.match(directory, /paginationRequestRef\.current/u);
@@ -91,6 +102,8 @@ const contentPagination = await read(
 );
 const publicPageStyles = await read('apps/web/src/pages/Organizations.scss');
 assert.match(publicPageStyles, /\.organizations-load-more button\s*\{[^}]*min-height:\s*44px/su);
+assert.match(publicPageStyles, /\.organizations-institution-filter\s*\{/u);
+assert.match(publicPageStyles, /\.organizations-institution-filter button\s*\{[^}]*min-height:\s*44px/su);
 const eventCalendar = await read(
   'apps/web/src/features/organizations/organization-event-calendar.mjs',
 );
