@@ -1,0 +1,44 @@
+name: B289 Mobile published profile sections exact-head
+on:
+  pull_request:
+    paths:
+      - apps/mobile/src/features/search/search-result-screens.tsx
+      - apps/mobile/src/features/search/public-profile-section-order.ts
+      - apps/mobile/test/public-profile-academic-screen.test.ts
+      - apps/mobile/test/public-profile-section-order.test.ts
+      - apps/mobile/test/public-profile-section-order-screen.test.ts
+      - .github/workflows/b289-profile-section-order.yml
+permissions:
+  contents: read
+concurrency:
+  group: b289-profile-order-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  verify-mobile-published-order:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 18
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+      - uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile --filter @losapuntes/mobile...
+      - name: Focused order tests, TypeScript, Prettier and lint
+        run: |
+          pnpm --filter @losapuntes/mobile test
+          pnpm --filter @losapuntes/mobile check:types
+          pnpm --filter @losapuntes/mobile lint
+          pnpm --filter @losapuntes/mobile format:check
+      - name: Read-only formatter differences on failure
+        if: failure()
+        run: |
+          for file in apps/mobile/src/features/search/search-result-screens.tsx apps/mobile/src/features/search/public-profile-section-order.ts apps/mobile/test/public-profile-academic-screen.test.ts apps/mobile/test/public-profile-section-order.test.ts apps/mobile/test/public-profile-section-order-screen.test.ts; do
+            echo "::group::Prettier diff $file"
+            pnpm --filter @losapuntes/mobile exec prettier "../../$file" | diff -u "$file" - || true
+            echo "::endgroup::"
+          done

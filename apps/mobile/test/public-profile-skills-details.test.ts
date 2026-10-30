@@ -8,9 +8,9 @@ const screen = readFileSync(
 );
 
 test("public Mobile profiles render the server-projected skills, interests and languages", () => {
-  assert.match(screen, /data\.profile\.skills\?\.skills\.length/u);
-  assert.match(screen, /data\.profile\.skills\.interests\.join\(", "\)/u);
-  assert.match(screen, /data\.profile\.skills\.languages\.join\(", "\)/u);
+  assert.match(screen, /profile\.skills\?\.skills\.length/u);
+  assert.match(screen, /profile\.skills\.interests\.join\(", "\)/u);
+  assert.match(screen, /profile\.skills\.languages\.join\(", "\)/u);
   assert.match(screen, /Intereses:/u);
   assert.match(screen, /Idiomas:/u);
 });

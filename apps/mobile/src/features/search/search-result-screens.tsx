@@ -1,4 +1,5 @@
 import type {
+  ProfileSection,
   PublicProfileResponse,
   ResourceView,
 } from "@losapuntes/contracts";
@@ -30,6 +31,7 @@ import {
 
 import { mobileSearchApi } from "./search-runtime";
 import { publicProfileAcademicSummary } from "./public-profile-academic-summary";
+import { publicProfileContentSectionOrder } from "./public-profile-section-order";
 import { publicProfileActivityPresentation } from "./public-profile-activity-presentation";
 import { PublicProfileActivityLink } from "./public-profile-activity-link";
 import { PublicProfileAvatar } from "./public-profile-avatar";
@@ -209,6 +211,150 @@ export function ResourceDetailsScreen({ resourceId }: { resourceId: string }) {
   );
 }
 
+function PublicProfileSections({
+  profile,
+  authorityKey,
+}: {
+  profile: PublicProfileResponse["profile"];
+  authorityKey: string | null;
+}) {
+  const available = new Set<ProfileSection>();
+  if (profile.professional?.headline) available.add("professional");
+  if (profile.academic) available.add("academic");
+  if (
+    profile.learning?.learningTopics.length ||
+    profile.learning?.helpTopics.length
+  ) {
+    available.add("learning");
+  }
+  if (
+    profile.skills?.skills.length ||
+    profile.skills?.interests.length ||
+    profile.skills?.languages.length
+  ) {
+    available.add("skills");
+  }
+  if (profile.activities?.length) available.add("activities");
+
+  return (
+    <>
+      {publicProfileContentSectionOrder(
+        profile.presentation.sectionOrder,
+        available,
+      ).map((section) => (
+        <View key={section} style={styles.card}>
+          {section === "professional" ? (
+            <>
+              {profile.professional?.headline ? (
+                <Text style={styles.meta}>{profile.professional.headline}</Text>
+              ) : null}
+            </>
+          ) : null}
+          {section === "academic" ? (
+            <>
+              {profile.academic ? (
+                <View style={styles.profileSection}>
+                  <Text accessibilityRole="header" style={styles.sectionTitle}>
+                    Trayectoria académica
+                  </Text>
+                  {publicProfileAcademicSummary(profile.academic).map(
+                    (line) => (
+                      <Text key={line} style={styles.meta}>
+                        {line}
+                      </Text>
+                    ),
+                  )}
+                </View>
+              ) : null}
+            </>
+          ) : null}
+          {section === "learning" ? (
+            <>
+              {profile.learning?.learningTopics.length ? (
+                <Text style={styles.meta}>
+                  Está aprendiendo: {profile.learning.learningTopics.join(", ")}
+                </Text>
+              ) : null}
+              {profile.learning?.helpTopics.length ? (
+                <Text style={styles.meta}>
+                  Puede ayudar con: {profile.learning.helpTopics.join(", ")}
+                </Text>
+              ) : null}
+            </>
+          ) : null}
+          {section === "skills" ? (
+            <>
+              {profile.skills?.skills.length ? (
+                <Text style={styles.meta}>
+                  Habilidades: {profile.skills.skills.join(", ")}
+                </Text>
+              ) : null}
+              {profile.skills?.interests.length ? (
+                <Text style={styles.meta}>
+                  Intereses: {profile.skills.interests.join(", ")}
+                </Text>
+              ) : null}
+              {profile.skills?.languages.length ? (
+                <Text style={styles.meta}>
+                  Idiomas: {profile.skills.languages.join(", ")}
+                </Text>
+              ) : null}
+            </>
+          ) : null}
+          {section === "activities" ? (
+            <>
+              {profile.activities?.length ? (
+                <View style={styles.activityList}>
+                  <Text style={styles.sectionTitle}>Actividad pública</Text>
+                  {profile.activities.map((activity) => {
+                    const presentation =
+                      publicProfileActivityPresentation(activity);
+                    return (
+                      <View key={activity.id} style={styles.activityCard}>
+                        <Text
+                          accessibilityRole="header"
+                          style={styles.activityTitle}
+                        >
+                          {activity.title}
+                        </Text>
+                        <View style={styles.activityDetails}>
+                          <Text style={styles.meta}>
+                            {presentation.typeLabel}
+                          </Text>
+                          {presentation.dateLabel ? (
+                            <Text style={styles.meta}>
+                              {presentation.dateLabel}
+                            </Text>
+                          ) : null}
+                        </View>
+                        {activity.description ? (
+                          <Text style={styles.copy}>
+                            {activity.description}
+                          </Text>
+                        ) : null}
+                        <PublicProfileActivityLink
+                          key={`${authorityKey ?? "anonymous"}:${activity.id}`}
+                          title={activity.title}
+                          value={activity.url}
+                        />
+                      </View>
+                    );
+                  })}
+                  {profile.activitiesNextCursor ? (
+                    <Text style={styles.meta}>
+                      Se muestra una tanda; hay más actividad disponible.
+                    </Text>
+                  ) : null}
+                </View>
+              ) : null}
+            </>
+          ) : null}
+        </View>
+      ))}
+    </>
+  );
+}
+
 export function PublicProfileScreen({ profileId }: { profileId: string }) {
   const { snapshot: session } = useSession();
   const isFocused = useIsFocused();
@@ -271,97 +417,11 @@ export function PublicProfileScreen({ profileId }: { profileId: string }) {
               {data.profile.about?.bio ? (
                 <Text style={styles.copy}>{data.profile.about.bio}</Text>
               ) : null}
-              {data.profile.professional?.headline ? (
-                <Text style={styles.meta}>
-                  {data.profile.professional.headline}
-                </Text>
-              ) : null}
-              {data.profile.academic ? (
-                <View style={styles.profileSection}>
-                  <Text accessibilityRole="header" style={styles.sectionTitle}>
-                    Trayectoria académica
-                  </Text>
-                  {publicProfileAcademicSummary(data.profile.academic).map(
-                    (line) => (
-                      <Text key={line} style={styles.meta}>
-                        {line}
-                      </Text>
-                    ),
-                  )}
-                </View>
-              ) : null}
-              {data.profile.learning?.learningTopics.length ? (
-                <Text style={styles.meta}>
-                  Está aprendiendo:{" "}
-                  {data.profile.learning.learningTopics.join(", ")}
-                </Text>
-              ) : null}
-              {data.profile.learning?.helpTopics.length ? (
-                <Text style={styles.meta}>
-                  Puede ayudar con:{" "}
-                  {data.profile.learning.helpTopics.join(", ")}
-                </Text>
-              ) : null}
-              {data.profile.skills?.skills.length ? (
-                <Text style={styles.meta}>
-                  Habilidades: {data.profile.skills.skills.join(", ")}
-                </Text>
-              ) : null}
-              {data.profile.skills?.interests.length ? (
-                <Text style={styles.meta}>
-                  Intereses: {data.profile.skills.interests.join(", ")}
-                </Text>
-              ) : null}
-              {data.profile.skills?.languages.length ? (
-                <Text style={styles.meta}>
-                  Idiomas: {data.profile.skills.languages.join(", ")}
-                </Text>
-              ) : null}
-              {data.profile.activities?.length ? (
-                <View style={styles.activityList}>
-                  <Text style={styles.sectionTitle}>Actividad pública</Text>
-                  {data.profile.activities.map((activity) => {
-                    const presentation =
-                      publicProfileActivityPresentation(activity);
-                    return (
-                      <View key={activity.id} style={styles.activityCard}>
-                        <Text
-                          accessibilityRole="header"
-                          style={styles.activityTitle}
-                        >
-                          {activity.title}
-                        </Text>
-                        <View style={styles.activityDetails}>
-                          <Text style={styles.meta}>
-                            {presentation.typeLabel}
-                          </Text>
-                          {presentation.dateLabel ? (
-                            <Text style={styles.meta}>
-                              {presentation.dateLabel}
-                            </Text>
-                          ) : null}
-                        </View>
-                        {activity.description ? (
-                          <Text style={styles.copy}>
-                            {activity.description}
-                          </Text>
-                        ) : null}
-                        <PublicProfileActivityLink
-                          key={`${authorityKey ?? "anonymous"}:${activity.id}`}
-                          title={activity.title}
-                          value={activity.url}
-                        />
-                      </View>
-                    );
-                  })}
-                  {data.profile.activitiesNextCursor ? (
-                    <Text style={styles.meta}>
-                      Se muestra una tanda; hay más actividad disponible.
-                    </Text>
-                  ) : null}
-                </View>
-              ) : null}
             </View>
+            <PublicProfileSections
+              profile={data.profile}
+              authorityKey={authorityKey}
+            />
             <SocialProfileConnectionAction
               profileId={profileId}
               displayName={data.profile.about?.displayName ?? "este perfil"}

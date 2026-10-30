@@ -142,15 +142,22 @@ test("organization directory appends cursor pages with id dedupe", async () => {
   await controller.load("session-a:clubs", {
     q: "club",
     type: "club",
+    verificationState: "verified",
     institutionId: "institution-a",
   });
   await controller.loadMore("session-a:clubs");
 
   assert.deepEqual(inputs, [
-    { q: "club", type: "club", institutionId: "institution-a" },
     {
       q: "club",
       type: "club",
+      verificationState: "verified",
+      institutionId: "institution-a",
+    },
+    {
+      q: "club",
+      type: "club",
+      verificationState: "verified",
       institutionId: "institution-a",
       cursor: "cursor-2",
     },
