@@ -171,6 +171,7 @@ export function MobileOrganizationsDirectoryScreen() {
           "organizations",
           query || "all",
           type ?? "all",
+          verificationState ?? "all-verifications",
           filterInstitution?.id ?? "all-institutions",
         ].join(":")
       : null;
@@ -200,6 +201,7 @@ export function MobileOrganizationsDirectoryScreen() {
     void controller.load(authorityKey, {
       ...(query ? { q: query } : {}),
       ...(type ? { type } : {}),
+      ...(verificationState ? { verificationState } : {}),
       ...(filterInstitution ? { institutionId: filterInstitution.id } : {}),
     });
     return () => controller.suspend(authorityKey);
@@ -210,6 +212,7 @@ export function MobileOrganizationsDirectoryScreen() {
     query,
     sessionKey,
     type,
+    verificationState,
   ]);
 
   useEffect(() => {
@@ -291,6 +294,7 @@ export function MobileOrganizationsDirectoryScreen() {
     void controller.load(authorityKey, {
       ...(query ? { q: query } : {}),
       ...(type ? { type } : {}),
+      ...(verificationState ? { verificationState } : {}),
       ...(filterInstitution ? { institutionId: filterInstitution.id } : {}),
     });
   };
