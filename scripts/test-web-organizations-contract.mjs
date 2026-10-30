@@ -224,4 +224,20 @@ assert.match(
   /to=\{`\/organizations\/\$\{encodeURIComponent\(item\.source\.organization\.id\)\}`\}/u,
 );
 
+const directoryFollowB283 = await read('apps/web/src/features/organizations/OrganizationDirectoryFollowAction.tsx');
+const followPageB283 = await read('apps/web/src/pages/Organizations.tsx');
+const followStylesB283 = await read('apps/web/src/pages/Organizations.scss');
+assert.match(directoryFollowB283, /organization-directory-follow:\$\{authScopeKey\}:\$\{organization\.id\}/u);
+assert.match(directoryFollowB283, /organizationsApi\.follow\(organization\.id, ticket\.signal\)/u);
+assert.match(directoryFollowB283, /organizationsApi\.unfollow\(organization\.id, ticket\.signal\)/u);
+assert.match(directoryFollowB283, /organizationsApi\.get\(\s*organization\.id,\s*ticket\.signal/u);
+assert.match(directoryFollowB283, /error\.status === 0 \|\| error\.status >= 500/u);
+assert.match(directoryFollowB283, /confirmedFollowing === desiredFollowing/u);
+assert.match(directoryFollowB283, /role=\{feedback\.isError \? "alert" : "status"\}/u);
+assert.match(followPageB283, /<OrganizationDirectoryFollowAction/u);
+assert.match(followPageB283, /authenticated && \(/u);
+assert.match(followPageB283, /current\?\.scopeKey === directoryScopeKey/u);
+assert.match(followPageB283, /institutionId:\s*filterInstitution\?\.id/u);
+assert.match(followStylesB283, /\.organization-card-actions button\s*\{[^}]*min-height:\s*44px/su);
+
 console.log('PASS Web Organizations authority/source contract');
