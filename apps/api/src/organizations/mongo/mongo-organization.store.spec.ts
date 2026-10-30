@@ -343,11 +343,11 @@ describe('MongoOrganizationStore verification-filtered directory', () => {
 
     expect(result).toEqual({ items: [], hasMore: false });
     expect(fixture.organizations.find).toHaveBeenCalledWith({
-      $and: expect.arrayContaining([
+      $and: [
         { status: 'active' },
         { verificationState: 'verified' },
         { institutionId: organizationId },
-      ]),
+      ],
     });
     expect(fixture.organizationSearchListQuery.limit).toHaveBeenCalledWith(11);
   });
