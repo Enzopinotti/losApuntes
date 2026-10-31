@@ -124,13 +124,18 @@ function EventCard({
         <Pressable
           accessibilityRole="button"
           accessibilityLabel={`Compartir enlace del evento ${event.title}`}
-          accessibilityState={{ busy: shareStatus === "sharing", disabled: shareBusy }}
+          accessibilityState={{
+            busy: shareStatus === "sharing",
+            disabled: shareBusy,
+          }}
           disabled={shareBusy}
           onPress={onShareExternal}
           style={styles.inlineAction}
         >
           <Text style={styles.inlineActionText}>
-            {shareStatus === "sharing" ? "Preparando enlace…" : "Compartir evento"}
+            {shareStatus === "sharing"
+              ? "Preparando enlace…"
+              : "Compartir evento"}
           </Text>
         </Pressable>
       ) : null}
