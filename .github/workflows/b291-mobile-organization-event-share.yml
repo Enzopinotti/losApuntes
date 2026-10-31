@@ -1,0 +1,45 @@
+name: B291 Mobile organization event sharing exact-head
+on:
+  pull_request:
+    paths:
+      - apps/mobile/src/features/organizations/organization-event-share.ts
+      - apps/mobile/src/features/organizations/organization-detail-screen.tsx
+      - apps/mobile/test/organization-event-share.test.ts
+      - apps/mobile/test/organization-event-share-screen.test.ts
+      - .github/workflows/b291-mobile-organization-event-share.yml
+permissions:
+  contents: read
+concurrency:
+  group: b291-event-share-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  verify-event-share:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+      - uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile --filter @losapuntes/mobile...
+      - name: Verify exact candidate and Mobile contracts
+        env:
+          EXPECTED_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          test "$(git rev-parse HEAD)" = "$EXPECTED_SHA"
+          pnpm --filter @losapuntes/mobile test
+          pnpm --filter @losapuntes/mobile check:types
+          pnpm --filter @losapuntes/mobile format:check
+      - name: Read-only Prettier differences on failure
+        if: failure()
+        run: |
+          for file in apps/mobile/src/features/organizations/organization-event-share.ts apps/mobile/src/features/organizations/organization-detail-screen.tsx apps/mobile/test/organization-event-share.test.ts apps/mobile/test/organization-event-share-screen.test.ts; do
+            echo "::group::Prettier diff $file"
+            pnpm --filter @losapuntes/mobile exec prettier "../../$file" | diff -u "$file" - || true
+            echo "::endgroup::"
+          done
