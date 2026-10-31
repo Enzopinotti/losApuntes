@@ -203,7 +203,10 @@ test("does not return a successful search after the session generation changes",
 
 test("page reads keep bearer authority and the exact cursor and limit", async () => {
   const tokenRef = { value: "a".repeat(43) };
-  const session = new SessionController(makeSessionApi(tokenRef), new MemoryStore());
+  const session = new SessionController(
+    makeSessionApi(tokenRef),
+    new MemoryStore(),
+  );
   await session.login({ email: "student@example.edu", password: "password" });
   let received: unknown;
   const api = new MobileSearchApi(
