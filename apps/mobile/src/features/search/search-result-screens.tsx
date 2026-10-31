@@ -30,10 +30,9 @@ import {
 } from "@/features/community/social-profile-connection-action";
 
 import { mobileSearchApi } from "./search-runtime";
+import { PublicProfileActivities } from "./public-profile-activities";
 import { publicProfileAcademicSummary } from "./public-profile-academic-summary";
 import { publicProfileContentSectionOrder } from "./public-profile-section-order";
-import { publicProfileActivityPresentation } from "./public-profile-activity-presentation";
-import { PublicProfileActivityLink } from "./public-profile-activity-link";
 import { PublicProfileAvatar } from "./public-profile-avatar";
 import { SharePublicProfileAction } from "./share-public-profile-action";
 import { useFencedDetail } from "./use-fenced-detail";
@@ -234,7 +233,9 @@ function PublicProfileSections({
   ) {
     available.add("skills");
   }
-  if (profile.activities?.length) available.add("activities");
+  if (profile.activities?.length || profile.activitiesNextCursor) {
+    available.add("activities");
+  }
 
   return (
     <>
@@ -302,52 +303,10 @@ function PublicProfileSections({
             </>
           ) : null}
           {section === "activities" ? (
-            <>
-              {profile.activities?.length ? (
-                <View style={styles.activityList}>
-                  <Text style={styles.sectionTitle}>Actividad pública</Text>
-                  {profile.activities.map((activity) => {
-                    const presentation =
-                      publicProfileActivityPresentation(activity);
-                    return (
-                      <View key={activity.id} style={styles.activityCard}>
-                        <Text
-                          accessibilityRole="header"
-                          style={styles.activityTitle}
-                        >
-                          {activity.title}
-                        </Text>
-                        <View style={styles.activityDetails}>
-                          <Text style={styles.meta}>
-                            {presentation.typeLabel}
-                          </Text>
-                          {presentation.dateLabel ? (
-                            <Text style={styles.meta}>
-                              {presentation.dateLabel}
-                            </Text>
-                          ) : null}
-                        </View>
-                        {activity.description ? (
-                          <Text style={styles.copy}>
-                            {activity.description}
-                          </Text>
-                        ) : null}
-                        <PublicProfileActivityLink
-                          key={`${authorityKey ?? "anonymous"}:${activity.id}`}
-                          title={activity.title}
-                          value={activity.url}
-                        />
-                      </View>
-                    );
-                  })}
-                  {profile.activitiesNextCursor ? (
-                    <Text style={styles.meta}>
-                      Se muestra una tanda; hay más actividad disponible.
-                    </Text>
-                  ) : null}
-                </View>
-              ) : null}
-            </>
+            <PublicProfileActivities
+              authorityKey={authorityKey ?? ""}
+              profile={profile}
+            />
           ) : null}
         </View>
       ))}
