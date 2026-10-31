@@ -13,7 +13,9 @@ const screen = readFileSync(
 test("organization detail wires native event share without changing follow authority", () => {
   assert.match(screen, /mobileOrganizationEventShareMessage\(event\)/u);
   assert.match(screen, /await Share\.share\(\{ message \}\)/u);
-  assert.ok(screen.includes("accessibilityLabel={`Compartir enlace del evento"));
+  assert.ok(
+    screen.includes("accessibilityLabel={`Compartir enlace del evento"),
+  );
   assert.match(screen, /disabled=\{shareBusy\}/u);
   assert.match(screen, /eventShareGeneration\.current/u);
   assert.match(screen, /shareStatus === "failure"/u);
