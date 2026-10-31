@@ -3,7 +3,10 @@ import test from "node:test";
 import { readFileSync } from "node:fs";
 
 const activities = readFileSync(
-  new URL("../src/features/search/public-profile-activities.tsx", import.meta.url),
+  new URL(
+    "../src/features/search/public-profile-activities.tsx",
+    import.meta.url,
+  ),
   "utf8",
 );
 
