@@ -219,7 +219,7 @@ test("page reads keep bearer authority and the exact cursor and limit", async ()
     }),
   );
   assert.deepEqual(
-    await api.publicProfileActivities("profile-a", "c1/+=" , 20),
+    await api.publicProfileActivities("profile-a", "c1/+?==", 20),
     { items: [], nextCursor: null },
   );
   assert.deepEqual(received, {
