@@ -88,6 +88,9 @@ const makeTransport = (
   publicProfile: async () => {
     throw new Error("unused profile read");
   },
+  publicProfileActivities: async () => {
+    throw new Error("unused profile activity read");
+  },
   ...overrides,
 });
 
@@ -196,4 +199,33 @@ test("does not return a successful search after the session generation changes",
   );
   assert.equal(session.getCredentialSnapshot()?.credential, tokenRef.value);
   assert.equal(store.value, tokenRef.value);
+});
+
+test("page reads keep bearer authority and the exact cursor and limit", async () => {
+  const tokenRef = { value: "a".repeat(43) };
+  const session = new SessionController(
+    makeSessionApi(tokenRef),
+    new MemoryStore(),
+  );
+  await session.login({ email: "student@example.edu", password: "password" });
+  let received: unknown;
+  const api = new MobileSearchApi(
+    session,
+    makeTransport({
+      publicProfileActivities: async (credential, profileId, cursor, limit) => {
+        received = { credential, profileId, cursor, limit };
+        return { items: [], nextCursor: null };
+      },
+    }),
+  );
+  assert.deepEqual(
+    await api.publicProfileActivities("profile-a", "c1/+?==", 20),
+    { items: [], nextCursor: null },
+  );
+  assert.deepEqual(received, {
+    credential: tokenRef.value,
+    profileId: "profile-a",
+    cursor: "c1/+?==",
+    limit: 20,
+  });
 });
