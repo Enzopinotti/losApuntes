@@ -164,7 +164,10 @@ test("stops a repeated cursor without looping and keeps accepted activity", asyn
   if (snapshot.kind !== "ready") return;
   assert.equal(snapshot.nextCursor, null);
   assert.equal(snapshot.failure, "server_unavailable");
-  assert.deepEqual(snapshot.items.map((item) => item.id), ["a1", "a2"]);
+  assert.deepEqual(
+    snapshot.items.map((item) => item.id),
+    ["a1", "a2"],
+  );
 });
 
 test("keeps cursor available after timeout without marking it visited", async () => {
