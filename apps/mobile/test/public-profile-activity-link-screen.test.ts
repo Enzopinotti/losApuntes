@@ -6,6 +6,13 @@ const profile = readFileSync(
   new URL("../src/features/search/search-result-screens.tsx", import.meta.url),
   "utf8",
 );
+const activities = readFileSync(
+  new URL(
+    "../src/features/search/public-profile-activities.tsx",
+    import.meta.url,
+  ),
+  "utf8",
+);
 const action = readFileSync(
   new URL(
     "../src/features/search/public-profile-activity-link.tsx",
@@ -15,10 +22,11 @@ const action = readFileSync(
 );
 
 test("public activity URLs are server-projected", () => {
-  assert.ok(profile.includes("value={activity.url}"));
-  assert.ok(profile.includes("title={activity.title}"));
-  assert.ok(profile.includes("key={`"));
-  assert.ok(profile.includes("PublicProfileActivityLink"));
+  assert.ok(activities.includes("value={activity.url}"));
+  assert.ok(activities.includes("title={activity.title}"));
+  assert.ok(activities.includes("key={`"));
+  assert.ok(activities.includes("PublicProfileActivityLink"));
+  assert.ok(profile.includes("PublicProfileActivities"));
   assert.ok(profile.includes("PublicProfileAvatar"));
   assert.ok(profile.includes("SharePublicProfileAction"));
   assert.ok(profile.includes("Intereses:"));
