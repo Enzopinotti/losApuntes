@@ -31,7 +31,7 @@ const profile = (
   revision: 1,
   presentation: {
     accentPreset: "default",
-    coverPreset: "default",
+    coverPreset: "none",
     sectionOrder: ["about", "activities"],
   },
   activities: [activity("a1")],
