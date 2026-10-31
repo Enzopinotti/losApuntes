@@ -14,7 +14,7 @@ import {
   Text,
   View,
 } from "react-native";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 import { navigationAuthorityKey } from "@/features/navigation/product-navigation";
 import { ProductSurface } from "@/features/navigation/product-surface";
@@ -29,6 +29,7 @@ import {
 } from "./organizations-controller";
 import { mobileOrganizationsApi } from "./organizations-runtime";
 import { mobileOrganizationPublicLink } from "./organization-public-share";
+import { mobileOrganizationEventShareMessage } from "./organization-event-share";
 
 function failureMessage(failure: MobileOrganizationsFailure): string {
   if (failure.kind === "not_found") {
@@ -80,10 +81,17 @@ function PostCard({ post }: { post: OrganizationPost }) {
 function EventCard({
   event,
   onOpenExternal,
+  onShareExternal,
+  shareStatus,
+  shareBusy,
 }: {
   event: OrganizationEvent;
   onOpenExternal: (url: string) => void;
+  onShareExternal: () => void;
+  shareStatus: "sharing" | "failure" | null;
+  shareBusy: boolean;
 }) {
+  const canShare = mobileOrganizationEventShareMessage(event) !== null;
   return (
     <View style={styles.item}>
       <Text style={styles.itemTitle}>{event.title}</Text>
@@ -112,6 +120,30 @@ function EventCard({
           <Text style={styles.inlineActionText}>Abrir enlace externo</Text>
         </Pressable>
       ) : null}
+      {canShare ? (
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={`Compartir enlace del evento ${event.title}`}
+          accessibilityState={{
+            busy: shareStatus === "sharing",
+            disabled: shareBusy,
+          }}
+          disabled={shareBusy}
+          onPress={onShareExternal}
+          style={styles.inlineAction}
+        >
+          <Text style={styles.inlineActionText}>
+            {shareStatus === "sharing"
+              ? "Preparando enlace…"
+              : "Compartir evento"}
+          </Text>
+        </Pressable>
+      ) : null}
+      {shareStatus === "failure" ? (
+        <Text accessibilityRole="alert" style={styles.error}>
+          No pudimos abrir el menú para compartir este evento.
+        </Text>
+      ) : null}
     </View>
   );
 }
@@ -134,6 +166,11 @@ export function MobileOrganizationDetailScreen({
   const [appState, setAppState] = useState(AppState.currentState);
   const [externalError, setExternalError] = useState<string | null>(null);
   const [shareError, setShareError] = useState<string | null>(null);
+  const [eventShareStatus, setEventShareStatus] = useState<{
+    eventId: string;
+    kind: "sharing" | "failure";
+  } | null>(null);
+  const eventShareGeneration = useRef(0);
 
   const sessionKey =
     session.kind === "authenticated"
@@ -154,6 +191,8 @@ export function MobileOrganizationDetailScreen({
   useEffect(() => {
     setExternalError(null);
     setShareError(null);
+    setEventShareStatus(null);
+    eventShareGeneration.current += 1;
 
     if (!authorityKey) {
       if (sessionKey) controller.suspend(authorityKey ?? sessionKey);
@@ -199,6 +238,26 @@ export function MobileOrganizationDetailScreen({
 
   const organization: OrganizationDetail | null =
     current?.kind === "ready" ? current.organization : null;
+
+  const shareEvent = async (event: OrganizationEvent) => {
+    const message = mobileOrganizationEventShareMessage(event);
+    if (!authorityKey || !message || eventShareStatus?.kind === "sharing") {
+      return;
+    }
+
+    const generation = ++eventShareGeneration.current;
+    setEventShareStatus({ eventId: event.id, kind: "sharing" });
+    try {
+      await Share.share({ message });
+      if (generation === eventShareGeneration.current) {
+        setEventShareStatus(null);
+      }
+    } catch {
+      if (generation === eventShareGeneration.current) {
+        setEventShareStatus({ eventId: event.id, kind: "failure" });
+      }
+    }
+  };
 
   const shareOrganization = async () => {
     if (!organization) return;
@@ -479,6 +538,13 @@ export function MobileOrganizationDetailScreen({
                   event={event}
                   key={event.id}
                   onOpenExternal={(url) => void openExternal(url)}
+                  onShareExternal={() => void shareEvent(event)}
+                  shareBusy={eventShareStatus?.kind === "sharing"}
+                  shareStatus={
+                    eventShareStatus?.eventId === event.id
+                      ? eventShareStatus.kind
+                      : null
+                  }
                 />
               ))
             )}
