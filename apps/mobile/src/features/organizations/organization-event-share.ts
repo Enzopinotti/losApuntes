@@ -3,7 +3,9 @@ import type { OrganizationEvent } from "@losapuntes/contracts";
 const MAX_EXTERNAL_URL_LENGTH = 2048;
 const MAX_SHARED_TITLE_LENGTH = 160;
 
-export function safeOrganizationEventExternalUrl(value: unknown): string | null {
+export function safeOrganizationEventExternalUrl(
+  value: unknown,
+): string | null {
   if (
     typeof value !== "string" ||
     value.length === 0 ||
