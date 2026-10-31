@@ -222,7 +222,7 @@ test("page reads keep bearer authority and the exact cursor and limit", async ()
   assert.deepEqual(received, {
     credential: tokenRef.value,
     profileId: "profile-a",
-    cursor: "c1/+=", 
+    cursor: "c1/+?==",
     limit: 20,
   });
 });
