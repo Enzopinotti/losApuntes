@@ -19,10 +19,16 @@ function advisoryEntries(document) {
   // Accept the newer npm shape; absence of both formats is invalid, never clean.
   if (object(document.vulnerabilities)) {
     return Object.entries(document.vulnerabilities).map(([name, detail]) => {
-      const via = Array.isArray(detail?.via)
-        ? detail.via.find((entry) => object(entry) && typeof entry.url === 'string')
-        : null;
-      return [name, { module_name: name, severity: detail?.severity, url: via?.url }];
+      // npm's "via" can hold multiple advisories for ONE vulnerable
+      // package. Picking the first URL silently loses a new high finding.
+      // Preserve every direct advisory while keeping the npm metadata
+      // count (which is per package, not per advisory) comparable.
+      const via = Array.isArray(detail?.via) ? detail.via : [];
+      return [name, {
+        module_name: name,
+        severity: detail?.severity,
+        viaAdvisories: via.filter(object),
+      }];
     });
   }
   return null;
@@ -30,12 +36,15 @@ function advisoryEntries(document) {
 
 function identifyAdvisory(key, value) {
   const tokens = [key, value.id, value.url, ...(Array.isArray(value.cves) ? value.cves : [])];
+  const candidates = new Set();
   for (const token of tokens) {
     if (typeof token !== 'string' && typeof token !== 'number') continue;
-    const match = String(token).match(ADVISORY_ID);
-    if (match) return match[0];
+    for (const match of String(token).matchAll(new RegExp(ADVISORY_ID.source, 'gu'))) {
+      candidates.add(match[0]);
+    }
   }
-  return null;
+  // Conflicting identifiers cannot be silently normalized as a known finding.
+  return candidates.size === 1 ? [...candidates][0] : null;
 }
 
 /**
@@ -73,13 +82,26 @@ export function classifyProductionAudit(document) {
     if (value.severity !== 'high' && value.severity !== 'critical') continue;
     if (value.severity === 'high') observedHigh++;
     else observedCritical++;
-    const advisoryId = identifyAdvisory(key, value);
-    const known = advisoryId && KNOWN_ADVISORIES[advisoryId];
-    if (known && value.module_name === known.packageName && value.severity === 'high') {
-      issues.add(known.issue);
-    } else {
-      newHigh++;
+    // pnpm's legacy advisories represent one direct finding per entry;
+    // npm's vulnerabilities represent one PACKAGE with several "via"
+    // advisories. Track unknown highs within the package without inflating
+    // metadata counts or allowing the first known ID to mask another high.
+    const direct = Array.isArray(value.viaAdvisories)
+      ? value.viaAdvisories.filter((via) =>
+          !SEVERITIES.has(via.severity) || via.severity === 'high' || via.severity === 'critical')
+      : [value];
+    let unknownHighForPackage = direct.length === 0;
+    for (const via of direct) {
+      const advisoryId = identifyAdvisory(key, via);
+      const known = advisoryId && KNOWN_ADVISORIES[advisoryId];
+      if (known && value.module_name === known.packageName &&
+          value.severity === 'high' && via.severity !== 'critical') {
+        issues.add(known.issue);
+      } else {
+        unknownHighForPackage = true;
+      }
     }
+    if (unknownHighForPackage) newHigh++;
   }
   if (Number.isSafeInteger(counts.high) && counts.high !== observedHigh) errors.add('AUDIT_HIGH_COUNT_MISMATCH');
   if (Number.isSafeInteger(counts.critical) && counts.critical !== observedCritical) errors.add('AUDIT_CRITICAL_COUNT_MISMATCH');
