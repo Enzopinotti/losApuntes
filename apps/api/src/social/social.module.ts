@@ -10,6 +10,7 @@ import { PilotTelemetryModule } from '../pilot/telemetry/pilot-telemetry.module'
 import { ProfileModule } from '../profile/profile.module';
 import { User, UserSchema } from '../users/schemas/user.schema';
 import { UsersModule } from '../users/users.module';
+import { FollowersService } from './domain/followers.service';
 import { SocialService } from './domain/social.service';
 import { SOCIAL_STORE } from './domain/social.store';
 import { MongoSocialStore } from './mongo/mongo-social.store';
@@ -19,7 +20,12 @@ import {
   SocialFollow,
   SocialFollowSchema,
 } from './mongo/social.mongo-schemas';
+import { FollowersController } from './followers.controller';
 import { SocialController } from './social.controller';
+
+// Register this index before Mongoose compiles the existing SocialFollow schema.
+// Kept in this module to avoid editing the independently changing B147 schema.
+SocialFollowSchema.index({ followeeUserId: 1, createdAt: -1, id: 1 });
 
 @Module({
   imports: [
@@ -35,6 +41,7 @@ import { SocialController } from './social.controller';
     ]),
   ],
   providers: [
+    FollowersService,
     SocialService,
     MongoSocialStore,
     {
@@ -42,7 +49,7 @@ import { SocialController } from './social.controller';
       useExisting: MongoSocialStore,
     },
   ],
-  controllers: [SocialController],
+  controllers: [SocialController, FollowersController],
   exports: [SocialService],
 })
 export class SocialModule {}
