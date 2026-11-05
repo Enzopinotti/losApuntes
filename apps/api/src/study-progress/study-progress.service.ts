@@ -4,6 +4,7 @@ import {
   Injectable,
   NotFoundException,
   UnprocessableEntityException,
+  ServiceUnavailableException,
 } from '@nestjs/common';
 import { InjectConnection, InjectModel } from '@nestjs/mongoose';
 import type { ClientSession, Connection, Model } from 'mongoose';
@@ -31,6 +32,19 @@ function duplicate(error: unknown): boolean {
     'code' in error &&
     error.code === 11000
   );
+}
+
+// B143: the overview intentionally carries no student-authored plan fields.
+// Use the existing unique owner+subject index for deterministic bounded reads.
+const STUDY_PROGRESS_INDEX_LIMIT = 16;
+const SUBJECT_UUID_V4 =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/u;
+
+function unavailableIndex(): never {
+  throw new ServiceUnavailableException({
+    code: 'STUDY_PROGRESS_INDEX_UNAVAILABLE',
+    message: 'Saved study subjects could not be listed safely',
+  });
 }
 
 @Injectable()
@@ -89,6 +103,44 @@ export class StudyProgressService {
       revision: record.revision,
       updatedAt: record.updatedAt,
     };
+  }
+
+  /**
+   * Private metadata-only overview. No plan, notes, title or owner identifier
+   * is serialized. GET /study-progress/:subjectId remains the sole plan read.
+   */
+  async list(ownerUserId: string) {
+    if (typeof ownerUserId !== 'string' || !ownerUserId.trim()) {
+      return unavailableIndex();
+    }
+    const rows = await this.progress
+      .find({ ownerUserId })
+      .select({ _id: 0, subjectId: 1, revision: 1, updatedAt: 1 })
+      .sort({ subjectId: 1 })
+      .limit(STUDY_PROGRESS_INDEX_LIMIT + 1)
+      .lean<Pick<StudyProgress, 'subjectId' | 'revision' | 'updatedAt'>[]>()
+      .exec();
+    if (rows.length > STUDY_PROGRESS_INDEX_LIMIT) return unavailableIndex();
+    const items = rows.map((row) => {
+      if (
+        !row ||
+        typeof row.subjectId !== 'string' ||
+        !SUBJECT_UUID_V4.test(row.subjectId) ||
+        !Number.isSafeInteger(row.revision) ||
+        row.revision < 1 ||
+        row.revision > 2_147_483_647 ||
+        !(row.updatedAt instanceof Date) ||
+        !Number.isFinite(row.updatedAt.getTime())
+      ) {
+        return unavailableIndex();
+      }
+      return {
+        subjectId: row.subjectId,
+        revision: row.revision,
+        updatedAt: row.updatedAt.toISOString(),
+      };
+    });
+    return { items };
   }
 
   async get(ownerUserId: string, subjectId: string) {

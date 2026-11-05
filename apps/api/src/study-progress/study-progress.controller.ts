@@ -37,6 +37,12 @@ class DeleteStudyProgressDto {
 export class StudyProgressController {
   constructor(private readonly service: StudyProgressService) {}
 
+  @Get()
+  @Header('Cache-Control', 'private, no-store')
+  list(@Req() req: AuthenticatedRequest) {
+    return this.service.list(req.user.id);
+  }
+
   @Get(':subjectId')
   @Header('Cache-Control', 'private, no-store')
   get(
