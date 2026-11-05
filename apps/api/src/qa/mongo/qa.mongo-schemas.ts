@@ -94,6 +94,12 @@ export class Answer {
 
 export const AnswerSchema = SchemaFactory.createForClass(Answer);
 AnswerSchema.index({ authorUserId: 1, id: 1 });
+AnswerSchema.index({
+  authorUserId: 1,
+  moderationState: 1,
+  createdAt: -1,
+  id: 1,
+});
 AnswerSchema.index({ questionId: 1, createdAt: 1, id: 1 });
 
 @Schema({ collection: 'qa_reports', timestamps: true })
