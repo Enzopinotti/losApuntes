@@ -1,0 +1,66 @@
+name: B178 upstream advisory-to-registry patch readiness
+
+on:
+  pull_request:
+    paths:
+      - scripts/security/upstream-patch-readiness.mjs
+      - scripts/security/check-upstream-patch-readiness.mjs
+      - scripts/security/upstream-patch-readiness.test.mjs
+      - docs/security/b178-upstream-patch-readiness.md
+      - .github/workflows/b178-upstream-patch-readiness.yml
+  push:
+    branches:
+      - security/b178-upstream-patch-readiness-20261021
+  workflow_dispatch:
+  schedule:
+    - cron: "23 9 * * *"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: b178-upstream-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check-upstream-readiness:
+    name: B178 independent npm / GHSA exact-head observation
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
+    env:
+      CI: "true"
+    steps:
+      - name: Checkout read-only exact source SHA
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+      - name: Assert immutable source
+        env:
+          EXPECTED_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          test "$(git rev-parse HEAD)" = "$EXPECTED_SHA"
+          test -z "$(git status --porcelain=v1 --untracked-files=all)"
+      - name: Set up pinned Node 24
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version-file: .nvmrc
+          package-manager-cache: false
+      - name: Syntax and adversarial security contract tests
+        run: |
+          node --check scripts/security/upstream-patch-readiness.mjs
+          node --check scripts/security/check-upstream-patch-readiness.mjs
+          node --test scripts/security/upstream-patch-readiness.test.mjs
+      - name: Read official GHSA advisories and npm metadata; never auto-update
+        run: node scripts/security/check-upstream-patch-readiness.mjs
+      - name: Verify original SHA and no generated repository files
+        env:
+          EXPECTED_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          test "$(git rev-parse HEAD)" = "$EXPECTED_SHA"
+          test -z "$(git status --porcelain=v1 --untracked-files=all)"
+
+# SUCCESS here only means valid monitoring evidence that both advisories still
+# have no published fix. The unchanged mandatory production audit remains red.
+# Once a verified official patch appears, this observation job FAILS and calls
+# for an explicit audited dependency update PR. It NEVER clears release HOLD.
