@@ -25,6 +25,8 @@ import {
   ResourceShare,
   ResourceShareSchema,
 } from './mongo/resource.mongo-schemas';
+import { ResourceSavedOverviewController } from './resource-saved-overview.controller';
+import { ResourceSavedOverviewService } from './resource-saved-overview.service';
 import { ResourcesController } from './resources.controller';
 import { ResourceSavedSearchController } from './resource-saved-search.controller';
 
@@ -46,6 +48,7 @@ import { ResourceSavedSearchController } from './resource-saved-search.controlle
   ],
   providers: [
     ResourceService,
+    ResourceSavedOverviewService,
     ResourceSavedSearchService,
     MongoResourceExportStore,
     MongoResourceStore,
@@ -62,7 +65,11 @@ import { ResourceSavedSearchController } from './resource-saved-search.controlle
       useExisting: MongoResourceStore,
     },
   ],
-  controllers: [ResourcesController, ResourceSavedSearchController],
+  controllers: [
+    ResourcesController,
+    ResourceSavedSearchController,
+    ResourceSavedOverviewController,
+  ],
   exports: [ResourceService],
 })
 export class ResourcesModule {}
