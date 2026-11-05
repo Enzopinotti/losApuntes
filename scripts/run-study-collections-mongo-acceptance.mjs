@@ -13,7 +13,7 @@ import {
 } from "./lib/study-mongo-acceptance.mjs";
 
 try {
-  const uri = validateStudyMongoGateUri(
+  const uri = await validateStudyMongoGateUri(
     process.env.STUDY_COLLECTIONS_TEST_MONGO_URI,
   );
   const scratch = mkdtempSync(join(tmpdir(), "losapuntes-mongo-b52-"));

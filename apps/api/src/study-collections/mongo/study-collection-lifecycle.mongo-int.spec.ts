@@ -78,6 +78,18 @@ runMongo(
       } catch {
         throw new Error('Local test Mongo URI is malformed');
       }
+      const optionEntries = [...parsed.searchParams.entries()];
+      const optionKeys = new Set(optionEntries.map(([key]) => key));
+      const validReplicaOptions =
+        optionEntries.length >= 1 &&
+        optionEntries.length <= 2 &&
+        optionKeys.size === optionEntries.length &&
+        optionKeys.has('replicaSet') &&
+        optionEntries.every(
+          ([key, value]) =>
+            (key === 'replicaSet' && value === 'rs0') ||
+            (key === 'directConnection' && value === 'true'),
+        );
       if (
         parsed.protocol !== 'mongodb:' ||
         parsed.hostname !== '127.0.0.1' ||
@@ -86,14 +98,14 @@ runMongo(
         parsed.username ||
         parsed.password ||
         parsed.hash !== '' ||
-        parsed.searchParams.size !== 1 ||
-        parsed.searchParams.get('replicaSet') !== 'rs0'
+        !validReplicaOptions
       ) {
         throw new Error(
           'B50 Mongo acceptance requires an uncredentialed local replica-set URI',
         );
       }
       connection = await createConnection(uri, {
+        directConnection: true,
         dbName: uniqueDbName,
         serverSelectionTimeoutMS: 8_000,
       }).asPromise();
