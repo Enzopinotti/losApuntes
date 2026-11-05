@@ -301,6 +301,32 @@ describe('ProfileService', () => {
     ).resolves.toBeNull();
   });
 
+  it('resolves public identity only for an existing non-closed profile', async () => {
+    const profileStore = store();
+    const academicService = academic();
+    profileStore.findProfileById
+      .mockResolvedValueOnce(profile())
+      .mockResolvedValueOnce(profile({ lifecycleState: 'closed' }))
+      .mockResolvedValueOnce(null);
+    const profiles = service(profileStore, academicService);
+
+    await expect(
+      profiles.resolvePublicProfileUserIdByProfileId(
+        '11111111-1111-4111-8111-111111111111',
+      ),
+    ).resolves.toBe('user-1');
+    await expect(
+      profiles.resolvePublicProfileUserIdByProfileId(
+        '22222222-2222-4222-8222-222222222222',
+      ),
+    ).resolves.toBeNull();
+    await expect(
+      profiles.resolvePublicProfileUserIdByProfileId(
+        '33333333-3333-4333-8333-333333333333',
+      ),
+    ).resolves.toBeNull();
+  });
+
   it('creates a normalized minimal profile with privacy-safe defaults', async () => {
     const profileStore = store();
     const academicService = academic();

@@ -396,6 +396,14 @@ export class ProfileService {
     return profile?.userId ?? null;
   }
 
+  async resolvePublicProfileUserIdByProfileId(
+    profileId: string,
+  ): Promise<string | null> {
+    const profile = await this.store.findProfileById(profileId);
+    if (!profile || profile.lifecycleState === 'closed') return null;
+    return profile.userId;
+  }
+
   async getPublicProfile(profileId: string) {
     const profile = await this.store.findProfileById(profileId);
     if (!profile || profile.lifecycleState === 'closed') this.profileNotFound();
