@@ -54,5 +54,17 @@ export interface StudyCollectionStore {
     resourceId: string,
     expectedRevision?: number,
   ): Promise<StudyCollectionRecord | null>;
+  /**
+   * Atomically replace only the order (not membership) under the existing
+   * active-owner lifecycle transaction. Both revision and original array are
+   * CAS predicates, so concurrent adds, removals or reorders cannot be lost.
+   */
+  reorderResources(input: {
+    id: string;
+    ownerUserId: string;
+    expectedRevision: number;
+    originalResourceIds: string[];
+    orderedResourceIds: string[];
+  }): Promise<StudyCollectionRecord | null>;
   deleteOwned(id: string, ownerUserId: string): Promise<boolean>;
 }

@@ -49,6 +49,7 @@ function setup(row: StudyCollectionRecord | null = collection()) {
     updateOwned: jest.fn().mockResolvedValue(row),
     addResource: jest.fn().mockResolvedValue(row),
     removeResource: jest.fn().mockResolvedValue(row),
+    reorderResources: jest.fn().mockResolvedValue(row),
     deleteOwned: jest.fn().mockResolvedValue(Boolean(row)),
   };
   const get = jest.fn().mockImplementation((id: string) =>
