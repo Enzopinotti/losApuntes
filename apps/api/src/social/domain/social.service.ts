@@ -3,12 +3,18 @@ import {
   Inject,
   Injectable,
   NotFoundException,
+  ServiceUnavailableException,
   UnprocessableEntityException,
 } from '@nestjs/common';
 import { randomUUID } from 'node:crypto';
 
 import { PilotEventService } from '../../pilot/telemetry/pilot-event.service';
 import { ProfileService } from '../../profile/domain/profile.service';
+import {
+  decodeConnectionRequestCursor,
+  encodeConnectionRequestCursor,
+  type ConnectionRequestDirection,
+} from './connection-request.cursor';
 import {
   SOCIAL_STORE,
   SocialParticipantInactiveError,
@@ -266,6 +272,84 @@ export class SocialService {
           ? encodeCursor({ at: last.updatedAt, id: last.id })
           : null,
     };
+  }
+
+  /**
+   * Actionable pending connection requests. Direction and authenticated owner
+   * are database predicates, never a client-side filtered full relation page.
+   */
+  async listConnectionRequests(
+    userId: string,
+    direction: ConnectionRequestDirection,
+    limit: number,
+    cursor?: string,
+  ) {
+    if (!Number.isSafeInteger(limit) || limit < 1 || limit > 25) {
+      throw new UnprocessableEntityException({
+        code: 'SOCIAL_REQUEST_LIMIT_INVALID',
+        message: 'Request page size must be between 1 and 25',
+      });
+    }
+    const after = decodeConnectionRequestCursor(userId, direction, cursor);
+    const rows = await this.store.listConnections(
+      userId,
+      'pending',
+      limit + 1,
+      after,
+      direction,
+    );
+    if (!Array.isArray(rows) || rows.length > limit + 1) {
+      this.invalidRequestData();
+    }
+    const pageRows = rows.slice(0, limit);
+    for (const row of pageRows) {
+      const isParticipant =
+        row.userLowId === userId || row.userHighId === userId;
+      const isRequester = row.requestedByUserId === userId;
+      const requesterIsParticipant =
+        row.requestedByUserId === row.userLowId ||
+        row.requestedByUserId === row.userHighId;
+      if (
+        !isParticipant ||
+        row.userLowId === row.userHighId ||
+        !requesterIsParticipant ||
+        row.status !== 'pending' ||
+        (direction === 'outgoing') !== isRequester ||
+        !(row.updatedAt instanceof Date) ||
+        !Number.isFinite(row.updatedAt.getTime())
+      ) {
+        this.invalidRequestData();
+      }
+    }
+    const last = pageRows.at(-1);
+    return {
+      items: await Promise.all(
+        pageRows.map((row) => this.projection(row, userId)),
+      ),
+      nextCursor:
+        rows.length > limit && last
+          ? encodeConnectionRequestCursor(userId, direction, {
+              at: last.updatedAt,
+              id: last.id,
+            })
+          : null,
+    };
+  }
+
+  async countIncomingConnectionRequests(userId: string) {
+    const pendingCount =
+      await this.store.countIncomingConnectionRequests(userId);
+    if (!Number.isSafeInteger(pendingCount) || pendingCount < 0) {
+      this.invalidRequestData();
+    }
+    return { pendingIncomingCount: pendingCount };
+  }
+
+  private invalidRequestData(): never {
+    throw new ServiceUnavailableException({
+      code: 'SOCIAL_REQUEST_DATA_INVALID',
+      message: 'Connection request inbox could not be read safely',
+    });
   }
 
   async listAccountExportFollowing(

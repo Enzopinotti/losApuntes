@@ -1,4 +1,5 @@
 import type { CreateNotificationRecord } from '../../notifications/domain/notification.types';
+import type { ConnectionRequestDirection } from './connection-request.cursor';
 import type {
   ConnectionRecord,
   ConnectionAccountExportRow,
@@ -49,7 +50,9 @@ export interface SocialStore {
     status: ConnectionStatus | undefined,
     limit: number,
     after?: SocialCursor,
+    direction?: ConnectionRequestDirection,
   ) => Promise<ConnectionRecord[]>;
+  countIncomingConnectionRequests: (userId: string) => Promise<number>;
   listConnectionsForAccountExport: (
     userId: string,
     limit: number,

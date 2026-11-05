@@ -2,6 +2,7 @@ import {
   Controller,
   Delete,
   Get,
+  Header,
   Param,
   ParseUUIDPipe,
   Post,
@@ -15,6 +16,7 @@ import type { AuthenticatedRequest } from '../auth/auth.types';
 import { AuthSessionGuard } from '../auth/guards/auth-session.guard';
 import { VerifiedEmailGuard } from '../auth/guards/verified-email.guard';
 import { SocialService } from './domain/social.service';
+import { ConnectionRequestsDto } from './dto/connection-requests.dto';
 import { ConnectionListDto, SocialListDto } from './dto/social.dto';
 
 @Controller('social')
@@ -32,6 +34,26 @@ export class SocialController {
       query.limit,
       query.cursor,
     );
+  }
+
+  @Get('me/connection-requests')
+  @Header('Cache-Control', 'private, no-store')
+  connectionRequests(
+    @Req() request: AuthenticatedRequest,
+    @Query() query: ConnectionRequestsDto,
+  ) {
+    return this.social.listConnectionRequests(
+      request.user.id,
+      query.direction,
+      query.limit,
+      query.cursor,
+    );
+  }
+
+  @Get('me/connection-requests/incoming-count')
+  @Header('Cache-Control', 'private, no-store')
+  incomingRequestCount(@Req() request: AuthenticatedRequest) {
+    return this.social.countIncomingConnectionRequests(request.user.id);
   }
 
   @Get('me/connections')
