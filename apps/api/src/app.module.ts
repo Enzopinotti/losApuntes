@@ -31,6 +31,7 @@ import { StudyCalendarModule } from './study-calendar/study-calendar.module';
 import { StudyNextActionsModule } from './study-next-actions/study-next-actions.module';
 import { StudyCollectionsModule } from './study-collections/study-collections.module';
 import { StudyProgressModule } from './study-progress/study-progress.module';
+import { StudyTaskReferenceCheckModule } from './study-task-reference-check/study-task-reference-check.module';
 import { SocialModule } from './social/social.module';
 import { UsersModule } from './users/users.module';
 
@@ -60,6 +61,7 @@ import { UsersModule } from './users/users.module';
     StudyAgendaModule,
     StudyCalendarModule,
     StudyNextActionsModule,
+    StudyTaskReferenceCheckModule,
     FeedsModule,
     NotificationsModule,
     OrganizationsModule,
