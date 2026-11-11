@@ -487,7 +487,10 @@ export type MobileOrganizationDetailSnapshot =
       authorityKey: string;
       organizationId: string;
       organization: OrganizationDetail;
-      busy: "follow" | "posts-more" | "events-more" | null;
+      eventView: "all" | "upcoming";
+      upcomingEvents: OrganizationEvent[];
+      upcomingEventsNextCursor: string | null;
+      busy: "follow" | "posts-more" | "events-filter" | "events-more" | null;
       failure: MobileOrganizationsFailure | null;
       notice: string | null;
     }
@@ -509,6 +512,7 @@ export class MobileOrganizationDetailController {
   private active: Operation | null = null;
   private readonly requestedPostCursors = new Set<string>();
   private readonly requestedEventCursors = new Set<string>();
+  private readonly requestedUpcomingEventCursors = new Set<string>();
 
   constructor(private readonly api: MobileOrganizationsApiContract) {}
 
@@ -525,6 +529,7 @@ export class MobileOrganizationDetailController {
     this.organizationId = organizationId;
     this.requestedPostCursors.clear();
     this.requestedEventCursors.clear();
+    this.requestedUpcomingEventCursors.clear();
     const operation = this.begin(authorityKey);
     this.publish({ kind: "loading", authorityKey, organizationId });
 
@@ -781,6 +786,7 @@ export class MobileOrganizationDetailController {
     this.organizationId = null;
     this.requestedPostCursors.clear();
     this.requestedEventCursors.clear();
+    this.requestedUpcomingEventCursors.clear();
     this.generation += 1;
     this.active?.controller.abort();
     this.active = null;
@@ -832,6 +838,9 @@ export class MobileOrganizationDetailController {
       authorityKey,
       organizationId,
       organization,
+      eventView: "all",
+      upcomingEvents: [],
+      upcomingEventsNextCursor: null,
       busy: null,
       failure: null,
       notice,
