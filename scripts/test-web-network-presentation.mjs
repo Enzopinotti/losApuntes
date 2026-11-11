@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import path from "node:path";
 import { NetworkActionGate } from "../apps/web/src/features/community/network-action-gate.ts";
+import { networkSearchRelationship } from "../apps/web/src/features/community/network-search-context.ts";
 import {
   appendUniqueNetworkItems,
   repeatsNetworkCursor,
@@ -104,6 +105,67 @@ assert.deepEqual(
 );
 
 
+// A paginated snapshot can prove a known relationship, not its absence.
+const knownFollowing = [
+  {
+    followedAt: "2026-11-11T10:00:00Z",
+    profile: {
+      profileId: "profile-friend",
+      displayName: "Persona conocida",
+      avatarUrl: null,
+    },
+  },
+];
+const knownConnections = [
+  { ...item("pending-in", "pending", true), other: { profileId: "profile-in" } },
+  { ...item("pending-out", "pending", false), other: { profileId: "profile-out" } },
+  { ...item("accepted", "accepted", false), other: { profileId: "profile-accepted" } },
+  { ...item("declined", "declined", false), other: { profileId: "profile-declined" } },
+  { ...item("disconnected", "disconnected", false), other: { profileId: "profile-disconnected" } },
+];
+assert.deepEqual(
+  networkSearchRelationship("profile-friend", knownFollowing, knownConnections),
+  { isFollowingKnown: true, connection: null, canRequestConnection: true },
+  "Already followed profiles must not offer a duplicate Follow action",
+);
+assert.deepEqual(
+  networkSearchRelationship("profile-in", knownFollowing, knownConnections),
+  { isFollowingKnown: false, connection: "incoming", canRequestConnection: false },
+  "An incoming pending request must not offer a redundant Connect action",
+);
+assert.deepEqual(
+  networkSearchRelationship("profile-out", knownFollowing, knownConnections),
+  { isFollowingKnown: false, connection: "outgoing", canRequestConnection: false },
+);
+assert.deepEqual(
+  networkSearchRelationship("profile-accepted", knownFollowing, knownConnections),
+  { isFollowingKnown: false, connection: "accepted", canRequestConnection: false },
+);
+for (const profileId of ["profile-declined", "profile-disconnected"]) {
+  assert.deepEqual(
+    networkSearchRelationship(profileId, knownFollowing, knownConnections),
+    { isFollowingKnown: false, connection: "reconnect", canRequestConnection: true },
+    "Terminal relations may be explicitly requested again by API contract",
+  );
+}
+assert.deepEqual(
+  networkSearchRelationship("profile-unloaded", knownFollowing, knownConnections),
+  { isFollowingKnown: false, connection: null, canRequestConnection: true },
+  "Unloaded pages must never be presented as proof that a relation does not exist",
+);
+assert.deepEqual(
+  networkSearchRelationship("", knownFollowing, knownConnections),
+  { isFollowingKnown: false, connection: null, canRequestConnection: true },
+);
+assert.deepEqual(
+  networkSearchRelationship("profile-mixed", knownFollowing, [
+    { ...item("old", "declined", false), other: { profileId: "profile-mixed" } },
+    { ...item("new", "pending", true), other: { profileId: "profile-mixed" } },
+  ]),
+  { isFollowingKnown: false, connection: "incoming", canRequestConnection: false },
+  "An active relationship wins over a stale terminal snapshot",
+);
+
 const actionGate = new NetworkActionGate();
 assert.equal(actionGate.tryAcquire("", "accept:id"), null);
 assert.equal(actionGate.tryAcquire("session-a", ""), null);
@@ -177,6 +239,18 @@ assert.match(page, /communityApi\.disconnect/u);
 assert.match(page, /network-person-name/u);
 assert.match(page, /encodeURIComponent\(connection\.other\.profileId\)/u);
 assert.match(page, /No encontramos perfiles públicos/u);
+assert.match(page, /networkSearchRelationship\(/u);
+assert.match(page, /relation\.isFollowingKnown/u);
+assert.match(page, /relation\.canRequestConnection/u);
+assert.match(page, /relation\.connection === "incoming"/u);
+assert.match(page, /relation\.connection === "reconnect"/u);
+assert.match(page, /Respon\w+ en solicitudes/u);
+assert.match(page, /Ya están conectados/u);
+assert.match(page, /Las páginas de tu red|las páginas de tu red/u);
+assert.match(page, /encodeURIComponent\(person\.profileId\)/u);
+assert.match(page, /network-search-results/u);
+assert.match(page, /import "\.\/NetworkSearchContext\.scss"/u);
+assert.doesNotMatch(page, /inferir.*conexión.*materia/iu);
 assert.match(page, /people\.length === 0/u);
 assert.match(page, /role="status"/u);
 assert.match(page, /connectionsNextCursor/u);
