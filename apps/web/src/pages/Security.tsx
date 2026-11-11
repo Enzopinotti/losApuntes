@@ -29,6 +29,7 @@ import {
   sessionRevocationReconciliation,
 } from "../features/auth/security-session-reconciliation.mjs";
 import { ConfirmDialog } from "../shared/components/ConfirmDialog";
+import "./SecurityRevocation.scss";
 import {
   useAsyncAuthorityFence,
   type AsyncAuthorityTicket,
@@ -563,7 +564,10 @@ const Security = () => {
       )}
 
       {uncertainSessionRevocation && (
-        <section aria-label="Cierre de sesión pendiente de verificación">
+        <section
+          className="security-revocation-uncertain"
+          aria-label="Cierre de sesión pendiente de verificación"
+        >
           <p role="status">
             No repetimos cierres automáticamente: el resultado anterior es
             incierto. Verificá el inventario de sesiones antes de continuar.
