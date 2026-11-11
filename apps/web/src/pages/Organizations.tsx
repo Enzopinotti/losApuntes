@@ -5,7 +5,7 @@ import {
   useState,
   type FormEvent,
 } from "react";
-import { Link } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 import { useAuth } from "../contexts/useAuth";
 import type {
   AcademicInstitutionOption,
@@ -18,6 +18,13 @@ import {
   organizationDirectoryCursorRepeats,
 } from "../features/organizations/organization-directory-pagination.mjs";
 import {
+  organizationDirectoryClearParams,
+  organizationDirectoryFiltersFromParams,
+  organizationDirectoryInstitutionParams,
+  organizationDirectoryListHref,
+  organizationDirectorySearchParams,
+} from "../features/organizations/organization-directory-navigation.mjs";
+import {
   isOrganizationsApiError,
   organizationsApi,
 } from "../features/organizations/services/organizationsService";
@@ -25,6 +32,7 @@ import { OrganizationAvatar } from "../features/organizations/OrganizationAvatar
 import { OrganizationDirectoryFollowAction } from "../features/organizations/OrganizationDirectoryFollowAction";
 import { useAsyncAuthorityFence } from "../shared/useAsyncAuthorityFence";
 import "./Organizations.scss";
+import "./OrganizationDirectoryShare.scss";
 
 const typeLabels: Record<OrganizationType, string> = {
   student_center: "Centro de estudiantes",
@@ -57,31 +65,54 @@ function messageFor(error: unknown): string {
 const Organizations = () => {
   const { status, user, session } = useAuth();
   const authenticated = status === "authenticated";
+  const [searchParams, setSearchParams] = useSearchParams();
+  const appliedFilters = organizationDirectoryFiltersFromParams(searchParams);
+  const invalidDirectoryFilters = appliedFilters === null;
+  const appliedQuery = appliedFilters?.q ?? "";
+  const appliedType = (appliedFilters?.type ?? "") as OrganizationType | "";
+  const appliedVerificationState = (appliedFilters?.verificationState ?? "") as
+    OrganizationVerificationState | "";
+  const appliedInstitutionId = appliedFilters?.institutionId ?? "";
+  const directoryLink = organizationDirectoryListHref(searchParams);
   const authScopeKey = [
     status,
     user?.id ?? "anonymous",
     session?.id ?? "no-session",
   ].join(":");
-  const [query, setQuery] = useState("");
-  const [type, setType] = useState<OrganizationType | "">("");
+  // Drafts are distinct from URL-applied filters; typing does not fetch.
+  const [query, setQuery] = useState(appliedQuery);
+  const [type, setType] = useState<OrganizationType | "">(appliedType);
   const [verificationState, setVerificationState] = useState<
     OrganizationVerificationState | ""
-  >("");
+  >(appliedVerificationState);
+  const [searchSubmitError, setSearchSubmitError] = useState<string | null>(
+    null,
+  );
+  useEffect(() => {
+    // Restore applied filters on Back/Forward and new shared links.
+    setQuery(appliedQuery);
+    setType(appliedType);
+    setVerificationState(appliedVerificationState);
+    setSearchSubmitError(null);
+  }, [appliedQuery, appliedType, appliedVerificationState]);
   const [filterInstitutionQuery, setFilterInstitutionQuery] = useState("");
   const [filterInstitutionSelection, setFilterInstitutionSelection] = useState<{
     authScopeKey: string;
     institution: AcademicInstitutionOption;
   } | null>(null);
   const filterInstitution =
-    filterInstitutionSelection?.authScopeKey === authScopeKey
+    filterInstitutionSelection?.authScopeKey === authScopeKey &&
+    filterInstitutionSelection.institution.id === appliedInstitutionId
       ? filterInstitutionSelection.institution
-      : null;
+      : appliedInstitutionId
+        ? { id: appliedInstitutionId, name: "la institución del enlace" }
+        : null;
   const directoryScopeKey = [
     "organizations-directory",
     authScopeKey,
-    query.trim(),
-    type || "all-types",
-    verificationState || "all-verification-states",
+    invalidDirectoryFilters ? "invalid-directory-link" : appliedQuery,
+    appliedType || "all-types",
+    appliedVerificationState || "all-verification-states",
     filterInstitution?.id ?? "all-institutions",
   ].join(":");
   const {
@@ -150,6 +181,11 @@ const Organizations = () => {
   } | null>(null);
   const feedback =
     feedbackState?.scopeKey === authScopeKey ? feedbackState.message : null;
+  const [directoryShareFeedback, setDirectoryShareFeedback] = useState<{
+    scopeKey: string;
+    message: string;
+  } | null>(null);
+  const shareScopeKey = [authScopeKey, directoryLink ?? "invalid"].join(":");
 
   const updateFollowing = useCallback(
     (organizationId: string, following: boolean) => {
@@ -233,12 +269,23 @@ const Organizations = () => {
     }));
     setErrorState(null);
     setPaginationErrorState(null);
+    if (invalidDirectoryFilters) {
+      setListState({
+        scopeKey: directoryScopeKey,
+        items: [],
+        loading: false,
+        loadingMore: false,
+        nextCursor: null,
+      });
+      finishDirectoryLoad(ticket);
+      return;
+    }
     try {
       const result = await organizationsApi.search(
         {
-          q: query.trim() || undefined,
-          type: type || undefined,
-          verificationState: verificationState || undefined,
+          q: appliedQuery || undefined,
+          type: appliedType || undefined,
+          verificationState: appliedVerificationState || undefined,
           institutionId: filterInstitution?.id,
         },
         ticket.signal,
@@ -272,15 +319,23 @@ const Organizations = () => {
     finishDirectoryLoad,
     isDirectoryLoadCurrent,
     filterInstitution?.id,
-    query,
-    type,
-    verificationState,
+    appliedQuery,
+    appliedType,
+    appliedVerificationState,
+    invalidDirectoryFilters,
   ]);
   const loadMore = useCallback(async () => {
     const current =
       listState?.scopeKey === directoryScopeKey ? listState : null;
     const cursor = current?.nextCursor;
-    if (!current || current.loading || current.loadingMore || !cursor) return;
+    if (
+      invalidDirectoryFilters ||
+      !current ||
+      current.loading ||
+      current.loadingMore ||
+      !cursor
+    )
+      return;
     if (paginationRequestRef.current?.scopeKey === directoryScopeKey) return;
     const history =
       requestedCursorsRef.current?.scopeKey === directoryScopeKey
@@ -319,9 +374,9 @@ const Organizations = () => {
     try {
       const result = await organizationsApi.search(
         {
-          q: query.trim() || undefined,
-          type: type || undefined,
-          verificationState: verificationState || undefined,
+          q: appliedQuery || undefined,
+          type: appliedType || undefined,
+          verificationState: appliedVerificationState || undefined,
           institutionId: filterInstitution?.id,
           cursor,
         },
@@ -379,13 +434,83 @@ const Organizations = () => {
     isDirectoryLoadCurrent,
     filterInstitution?.id,
     listState,
-    query,
-    type,
-    verificationState,
+    appliedQuery,
+    appliedType,
+    appliedVerificationState,
+    invalidDirectoryFilters,
   ]);
 
   const loadRef = useRef(load);
   loadRef.current = load;
+
+  const applyDirectorySearch = () => {
+    const next = organizationDirectorySearchParams(
+      searchParams,
+      query,
+      type,
+      verificationState,
+    );
+    if (!next) {
+      setSearchSubmitError(
+        "La búsqueda debe tener entre 2 y 120 caracteres, o estar vacía.",
+      );
+      return;
+    }
+    setSearchSubmitError(null);
+    if (next.toString() === searchParams.toString()) {
+      void loadRef.current();
+    } else {
+      setSearchParams(next);
+    }
+  };
+
+  const clearDirectorySearch = () => {
+    setSearchSubmitError(null);
+    setFilterInstitutionSelection(null);
+    setFilterInstitutionQuery("");
+    setFilterInstitutionsState(null);
+    setSearchParams((current) => organizationDirectoryClearParams(current));
+  };
+
+  const updateDirectoryInstitution = (
+    nextInstitution: AcademicInstitutionOption | null,
+  ) => {
+    const next = organizationDirectoryInstitutionParams(
+      searchParams,
+      nextInstitution?.id ?? null,
+    );
+    if (!next) return;
+    setFilterInstitutionSelection(
+      nextInstitution ? { authScopeKey, institution: nextInstitution } : null,
+    );
+    setFilterInstitutionsState(null);
+    setSearchSubmitError(null);
+    setSearchParams(next);
+  };
+
+  const copyDirectorySearch = async () => {
+    if (!directoryLink) return;
+    const scopeKey = shareScopeKey;
+    try {
+      if (!navigator.clipboard?.writeText) {
+        throw new Error("Clipboard unavailable");
+      }
+      await navigator.clipboard.writeText(
+        new URL(directoryLink, window.location.origin).toString(),
+      );
+      setDirectoryShareFeedback({
+        scopeKey,
+        message:
+          "Enlace del directorio copiado con los filtros públicos aplicados.",
+      });
+    } catch {
+      setDirectoryShareFeedback({
+        scopeKey,
+        message:
+          "No pudimos copiar el enlace. Podés abrirlo y copiarlo desde el navegador.",
+      });
+    }
+  };
 
   useEffect(() => {
     void load();
@@ -535,16 +660,32 @@ const Organizations = () => {
           {error}
         </p>
       )}
+      {invalidDirectoryFilters && (
+        <p className="organizations-error" role="alert">
+          El enlace tiene filtros inválidos o repetidos. No mostraremos
+          resultados sin los filtros que intentaste usar. Limpiá los filtros
+          para volver a explorar el directorio.
+        </p>
+      )}
+      {searchSubmitError && (
+        <p className="organizations-error" role="alert">
+          {searchSubmitError}
+        </p>
+      )}
 
       <form
-        className="organizations-search"
+        className="organizations-search organizations-shareable-search"
+        role="search"
         onSubmit={(event) => {
           event.preventDefault();
-          void load();
+          applyDirectorySearch();
         }}
       >
         <input
           aria-label="Buscar organizaciones"
+          type="search"
+          minLength={2}
+          maxLength={120}
           placeholder="Buscar por nombre"
           value={query}
           onChange={(event) => setQuery(event.target.value)}
@@ -579,7 +720,43 @@ const Organizations = () => {
         <button type="submit" disabled={loading}>
           Buscar
         </button>
+        <button
+          type="button"
+          className="secondary"
+          onClick={clearDirectorySearch}
+          disabled={
+            !searchParams.has("q") &&
+            !searchParams.has("type") &&
+            !searchParams.has("verificationState") &&
+            !searchParams.has("institutionId")
+          }
+        >
+          Limpiar todos los filtros
+        </button>
       </form>
+
+      <div className="organizations-directory-share">
+        <p role="status">
+          {invalidDirectoryFilters
+            ? "Búsqueda suspendida: el enlace no es válido."
+            : "Los filtros se aplican al buscar, no mientras escribís."}
+        </p>
+        {directoryLink && (
+          <div className="organizations-directory-share-actions">
+            <button
+              type="button"
+              className="secondary"
+              onClick={() => void copyDirectorySearch()}
+            >
+              Copiar búsqueda
+            </button>
+            <Link to={directoryLink}>Abrir enlace compartible</Link>
+          </div>
+        )}
+        {directoryShareFeedback?.scopeKey === shareScopeKey && (
+          <p role="status">{directoryShareFeedback.message}</p>
+        )}
+      </div>
 
       <div className="organizations-institution-filter">
         <label htmlFor="organizations-filter-institution">
@@ -591,7 +768,6 @@ const Organizations = () => {
             value={filterInstitutionQuery}
             onChange={(event) => {
               setFilterInstitutionQuery(event.target.value);
-              setFilterInstitutionSelection(null);
               setFilterInstitutionsState(null);
             }}
             placeholder="Buscar universidad"
@@ -613,9 +789,8 @@ const Organizations = () => {
               type="button"
               className="secondary"
               onClick={() => {
-                setFilterInstitutionSelection(null);
+                updateDirectoryInstitution(null);
                 setFilterInstitutionQuery("");
-                setFilterInstitutionsState(null);
               }}
             >
               Quitar filtro
@@ -629,12 +804,8 @@ const Organizations = () => {
                 <button
                   type="button"
                   onClick={() => {
-                    setFilterInstitutionSelection({
-                      authScopeKey,
-                      institution: option,
-                    });
+                    updateDirectoryInstitution(option);
                     setFilterInstitutionQuery(option.name);
-                    setFilterInstitutionsState(null);
                     setErrorState(null);
                   }}
                 >
