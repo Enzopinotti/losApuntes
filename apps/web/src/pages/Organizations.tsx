@@ -32,6 +32,7 @@ import { OrganizationAvatar } from "../features/organizations/OrganizationAvatar
 import { OrganizationDirectoryFollowAction } from "../features/organizations/OrganizationDirectoryFollowAction";
 import { useAsyncAuthorityFence } from "../shared/useAsyncAuthorityFence";
 import "./Organizations.scss";
+import "./OrganizationDirectoryShare.scss";
 
 const typeLabels: Record<OrganizationType, string> = {
   student_center: "Centro de estudiantes",
@@ -671,7 +672,7 @@ const Organizations = () => {
       )}
 
       <form
-        className="organizations-search"
+        className="organizations-search organizations-shareable-search"
         role="search"
         onSubmit={(event) => {
           event.preventDefault();
@@ -801,10 +802,6 @@ const Organizations = () => {
                 <button
                   type="button"
                   onClick={() => {
-                    setFilterInstitutionSelection({
-                      authScopeKey,
-                      institution: option,
-                    });
                     updateDirectoryInstitution(option);
                     setFilterInstitutionQuery(option.name);
                     setErrorState(null);
