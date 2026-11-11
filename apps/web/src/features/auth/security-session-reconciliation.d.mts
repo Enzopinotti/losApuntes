@@ -1,6 +1,13 @@
 export type SessionRevocationStatus = "unknown" | "active" | "revoked";
 export type SessionInventoryForReconciliation = Readonly<{
-  sessions: readonly Readonly<{ id: string }>[];
+  sessions: readonly Readonly<{
+    id: string;
+    clientType: "web" | "mobile";
+    current: boolean;
+    createdAt: string;
+    lastSeenAt: string;
+    expiresAt: string;
+  }>[];
   truncated: boolean;
   limit: number;
 }>;
