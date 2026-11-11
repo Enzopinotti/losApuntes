@@ -19,9 +19,7 @@ import {
   isNotificationReadAllConfirmed,
   isNotificationReadConfirmed,
 } from "../features/community/notification-read-ack.mjs";
-import {
-  NotificationMutationGate,
-} from "../features/community/notification-mutation-gate";
+import { NotificationMutationGate } from "../features/community/notification-mutation-gate";
 import {
   appendUniqueNotifications,
   repeatsNotificationCursor,
@@ -125,51 +123,56 @@ const Notifications = () => {
     window.scrollTo(0, 0);
   }, [authorityScope, status]);
 
-  const loadFirstPage = useCallback(async (confirmUncertain = false) => {
-    const ticket = beginListRequest();
-    firstPagePendingRef.current = true;
-    setLoading(true);
-    setLoadingMore(false);
-    setError(null);
-
-    try {
-      const result = await communityApi.notifications(
-        {
-          unreadOnly,
-          limit: NOTIFICATION_PAGE_SIZE,
-        },
-        ticket.signal,
-      );
-      if (!isListRequestCurrent(ticket)) return;
-
-      requestedCursorsRef.current.clear();
-      setItems(result.items);
-      setNextCursor(result.nextCursor);
-      setLoadedPages(1);
-      // Only a refresh explicitly requested after uncertainty can unlock
-      // writes. An earlier in-flight load must never clear a newer warning.
-      if (confirmUncertain) {
-        setUncertainMutation((current) =>
-          current?.scopeKey === authorityScope ? null : current,
-        );
-      }
+  const loadFirstPage = useCallback(
+    async (confirmUncertain = false) => {
+      const ticket = beginListRequest();
+      firstPagePendingRef.current = true;
+      setLoading(true);
+      setLoadingMore(false);
       setError(null);
-    } catch (nextError) {
-      if (!isListRequestCurrent(ticket)) return;
-      setError(messageFor(nextError, "No pudimos cargar tus notificaciones."));
-    } finally {
-      if (finishListRequest(ticket)) {
-        firstPagePendingRef.current = false;
-        setLoading(false);
+
+      try {
+        const result = await communityApi.notifications(
+          {
+            unreadOnly,
+            limit: NOTIFICATION_PAGE_SIZE,
+          },
+          ticket.signal,
+        );
+        if (!isListRequestCurrent(ticket)) return;
+
+        requestedCursorsRef.current.clear();
+        setItems(result.items);
+        setNextCursor(result.nextCursor);
+        setLoadedPages(1);
+        // Only a refresh explicitly requested after uncertainty can unlock
+        // writes. An earlier in-flight load must never clear a newer warning.
+        if (confirmUncertain) {
+          setUncertainMutation((current) =>
+            current?.scopeKey === authorityScope ? null : current,
+          );
+        }
+        setError(null);
+      } catch (nextError) {
+        if (!isListRequestCurrent(ticket)) return;
+        setError(
+          messageFor(nextError, "No pudimos cargar tus notificaciones."),
+        );
+      } finally {
+        if (finishListRequest(ticket)) {
+          firstPagePendingRef.current = false;
+          setLoading(false);
+        }
       }
-    }
-  }, [
-    authorityScope,
-    beginListRequest,
-    finishListRequest,
-    isListRequestCurrent,
-    unreadOnly,
-  ]);
+    },
+    [
+      authorityScope,
+      beginListRequest,
+      finishListRequest,
+      isListRequestCurrent,
+      unreadOnly,
+    ],
+  );
 
   const loadMore = useCallback(
     async (cursor: string) => {
