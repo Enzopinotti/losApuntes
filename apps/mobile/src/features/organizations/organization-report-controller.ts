@@ -49,7 +49,9 @@ function ambiguous(failure: MobileOrganizationsFailure): boolean {
   );
 }
 
-function confirmedReportReason(value: unknown): OrganizationReportReason | null {
+function confirmedReportReason(
+  value: unknown,
+): OrganizationReportReason | null {
   if (typeof value !== "object" || value === null) return null;
   const report = (value as { report?: unknown }).report;
   if (typeof report !== "object" || report === null) return null;
