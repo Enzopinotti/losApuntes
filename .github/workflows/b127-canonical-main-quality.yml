@@ -47,10 +47,6 @@ jobs:
           cache: pnpm
       - name: Install frozen workspace
         run: pnpm install --frozen-lockfile
-      - name: Diagnostic exact Web Q&A formatting (temporary)
-        run: |
-          pnpm --filter @losapuntes/web exec prettier src/pages/Questions.tsx > /tmp/questions.prettier.tsx
-          diff -u apps/web/src/pages/Questions.tsx /tmp/questions.prettier.tsx || true
       - name: Check all canonical formatting without modifying source
         run: |
           pnpm --filter @losapuntes/api format:check
