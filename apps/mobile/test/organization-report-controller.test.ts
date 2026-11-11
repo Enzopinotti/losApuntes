@@ -243,7 +243,11 @@ test("a malformed report acknowledgement cannot claim success or retry blindly",
       reportPost: async () => {
         calls += 1;
         return {
-          report: { id: "", reason: "spam" as const, status: "pending" as const },
+          report: {
+            id: "",
+            reason: "spam" as const,
+            status: "pending" as const,
+          },
         };
       },
     }),
