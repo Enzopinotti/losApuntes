@@ -15,6 +15,12 @@ import {
 } from "../features/community/notification-category.mjs";
 import { notificationTargetPath } from "../features/community/notification-navigation.mjs";
 import {
+  isNotificationMutationUncertain,
+  isNotificationReadAllConfirmed,
+  isNotificationReadConfirmed,
+} from "../features/community/notification-read-ack.mjs";
+import { NotificationMutationGate } from "../features/community/notification-mutation-gate";
+import {
   appendUniqueNotifications,
   repeatsNotificationCursor,
 } from "../features/community/notification-pagination.mjs";
@@ -63,6 +69,11 @@ const Notifications = () => {
   const firstPagePendingRef = useRef(false);
   const consumedReconcileTickRef = useRef(0);
   const requestedCursorsRef = useRef(new Set<string>());
+  const mutationGateRef = useRef(new NotificationMutationGate());
+  const [uncertainMutation, setUncertainMutation] = useState<{
+    scopeKey: string;
+    actionKey: string;
+  } | null>(null);
 
   const authorityScope = [
     status,
@@ -82,6 +93,7 @@ const Notifications = () => {
     finish: finishActionRequest,
   } = useAsyncAuthorityFence(`notifications-action:${authorityScope}`);
 
+  const mutationNeedsRefresh = uncertainMutation?.scopeKey === authorityScope;
   const busy = loadingMore || actionBusy;
   const loadedCategoryCounts = notificationCategoryCounts(items);
   const visibleItems = selectNotificationCategory(items, category);
@@ -106,6 +118,7 @@ const Notifications = () => {
     setLoadingMore(false);
     setActionBusy(false);
     setOpeningState(null);
+    setUncertainMutation(null);
     setError(null);
     window.scrollTo(0, 0);
   }, [authorityScope, status]);
@@ -131,6 +144,8 @@ const Notifications = () => {
       setItems(result.items);
       setNextCursor(result.nextCursor);
       setLoadedPages(1);
+      // A successful authoritative read reconciles an ambiguous write.
+      setUncertainMutation(null);
       setError(null);
     } catch (nextError) {
       if (!isListRequestCurrent(ticket)) return;
@@ -323,44 +338,82 @@ const Notifications = () => {
     };
   }, [busy, loading, reconcileLoadedWindow, status]);
 
+  const recordMutationError = (
+    nextError: unknown,
+    actionKey: string,
+    fallback: string,
+  ) => {
+    if (isNotificationMutationUncertain(nextError)) {
+      setUncertainMutation({ scopeKey: authorityScope, actionKey });
+      setError(
+        "No pudimos confirmar el cambio. Actualizá la bandeja antes de intentar otra acción.",
+      );
+      return;
+    }
+    setError(messageFor(nextError, fallback));
+  };
+
   const markRead = async (id: string) => {
+    if (mutationNeedsRefresh) return;
+    const lease = mutationGateRef.current.tryAcquire(authorityScope, `read:${id}`);
+    if (!lease) return;
+
     const ticket = beginActionRequest();
     setActionBusy(true);
     setError(null);
 
     try {
-      await communityApi.markNotificationRead(id, ticket.signal);
+      const result = await communityApi.markNotificationRead(id, ticket.signal);
       if (!isActionRequestCurrent(ticket)) return;
+      if (!isNotificationReadConfirmed(result)) {
+        throw new Error("Unconfirmed notification read");
+      }
       setReconcileTick((current) => current + 1);
     } catch (nextError) {
       if (!isActionRequestCurrent(ticket)) return;
-      setError(messageFor(nextError, "No pudimos marcar la notificación."));
+      recordMutationError(nextError, lease.actionKey, "No pudimos marcar la notificación.");
     } finally {
+      mutationGateRef.current.release(lease);
       if (finishActionRequest(ticket)) setActionBusy(false);
     }
   };
 
   const markAll = async () => {
+    if (mutationNeedsRefresh) return;
+    const lease = mutationGateRef.current.tryAcquire(authorityScope, "read-all");
+    if (!lease) return;
+
     const ticket = beginActionRequest();
     setActionBusy(true);
     setError(null);
 
     try {
-      await communityApi.markAllNotificationsRead(ticket.signal);
+      const result = await communityApi.markAllNotificationsRead(ticket.signal);
       if (!isActionRequestCurrent(ticket)) return;
+      if (!isNotificationReadAllConfirmed(result)) {
+        throw new Error("Unconfirmed notification read-all");
+      }
       setReconcileTick((current) => current + 1);
     } catch (nextError) {
       if (!isActionRequestCurrent(ticket)) return;
-      setError(
-        messageFor(nextError, "No pudimos actualizar tus notificaciones."),
+      recordMutationError(
+        nextError,
+        lease.actionKey,
+        "No pudimos actualizar tus notificaciones.",
       );
     } finally {
+      mutationGateRef.current.release(lease);
       if (finishActionRequest(ticket)) setActionBusy(false);
     }
   };
 
   const acknowledgeAndOpen = async (item: NotificationView, target: string) => {
-    if (actionBusy) return;
+    if (mutationNeedsRefresh) return;
+    const lease = mutationGateRef.current.tryAcquire(
+      authorityScope,
+      `open:${item.id}`,
+    );
+    if (!lease) return;
 
     const ticket = beginActionRequest();
     setActionBusy(true);
@@ -372,21 +425,21 @@ const Notifications = () => {
         item.id,
         ticket.signal,
       );
-      if (result.read !== true) {
-        throw new Error("Unexpected notification read response");
-      }
       if (!isActionRequestCurrent(ticket)) return;
+      if (!isNotificationReadConfirmed(result)) {
+        throw new Error("Unconfirmed notification read before navigation");
+      }
       setReconcileTick((current) => current + 1);
       navigate(target);
     } catch (nextError) {
       if (!isActionRequestCurrent(ticket)) return;
-      setError(
-        messageFor(
-          nextError,
-          "No pudimos confirmar la lectura. Seguís en Notificaciones.",
-        ),
+      recordMutationError(
+        nextError,
+        lease.actionKey,
+        "No pudimos confirmar la lectura. Seguís en Notificaciones.",
       );
     } finally {
+      mutationGateRef.current.release(lease);
       if (finishActionRequest(ticket)) setActionBusy(false);
       setOpeningState((current) =>
         current?.scopeKey === authorityScope &&
