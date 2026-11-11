@@ -431,8 +431,24 @@ jobs:
       - name: Install root and Web workspace dependencies
         run: pnpm install --frozen-lockfile --filter los-apuntes --filter @losapuntes/web...
 
-      - name: Install Chromium for browser smoke
-        run: pnpm exec playwright install --with-deps chromium
+      # Ubuntu 22.04 GitHub runners ship the Playwright Chromium host libraries.
+      # Avoid a fresh apt/Ubuntu mirror operation: upstream DNS outages used to
+      # block all runtime tests before the browser could even start.
+      - name: Install exact Playwright-managed Chromium (no apt mirror dependency)
+        run: |
+          for attempt in 1 2 3; do
+            if pnpm exec playwright install chromium; then
+              exit 0
+            fi
+            if [ "$attempt" -lt 3 ]; then
+              sleep $((attempt * 4))
+            fi
+          done
+          echo "Chromium browser download failed; refusing to skip browser smoke." >&2
+          exit 1
+
+      - name: Prove real Chromium launch, DOM and JavaScript execution
+        run: node scripts/ci/playwright-browser-preflight.mjs
 
       - name: Validate Compose definition
         run: docker compose -f compose.local.yml -f compose.health.yml config --quiet
