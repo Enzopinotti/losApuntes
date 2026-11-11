@@ -543,6 +543,61 @@ export function MobileOrganizationDetailScreen({
             <Text accessibilityRole="header" style={styles.sectionTitle}>
               Eventos
             </Text>
+            <View style={styles.eventFilters}>
+              <Pressable
+                accessibilityRole="button"
+                accessibilityState={{
+                  selected: eventView === "upcoming",
+                  disabled: current.busy !== null,
+                }}
+                disabled={current.busy !== null}
+                onPress={() =>
+                  authorityKey &&
+                  void controller.loadUpcomingEvents(
+                    authorityKey,
+                    organizationId,
+                  )
+                }
+                style={[
+                  styles.eventFilterButton,
+                  eventView === "upcoming" && styles.eventFilterSelected,
+                ]}
+              >
+                <Text
+                  style={[
+                    styles.eventFilterText,
+                    eventView === "upcoming" && styles.eventFilterTextSelected,
+                  ]}
+                >
+                  {current.busy === "events-filter" ? "Cargando…" : "Próximos"}
+                </Text>
+              </Pressable>
+              <Pressable
+                accessibilityRole="button"
+                accessibilityState={{
+                  selected: eventView === "all",
+                  disabled: current.busy !== null,
+                }}
+                disabled={current.busy !== null}
+                onPress={() =>
+                  authorityKey &&
+                  controller.showAllEvents(authorityKey, organizationId)
+                }
+                style={[
+                  styles.eventFilterButton,
+                  eventView === "all" && styles.eventFilterSelected,
+                ]}
+              >
+                <Text
+                  style={[
+                    styles.eventFilterText,
+                    eventView === "all" && styles.eventFilterTextSelected,
+                  ]}
+                >
+                  Todos
+                </Text>
+              </Pressable>
+            </View>
             {visibleEvents.length === 0 ? (
               <Text style={styles.copy}>
                 {eventView === "upcoming"
