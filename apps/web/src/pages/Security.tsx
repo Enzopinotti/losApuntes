@@ -26,6 +26,7 @@ import {
 import { SecurityActionGate } from "../features/auth/security-action-gate";
 import {
   isUncertainSessionRevocationError,
+  isValidSessionInventory,
   sessionRevocationReconciliation,
 } from "../features/auth/security-session-reconciliation.mjs";
 import { ConfirmDialog } from "../shared/components/ConfirmDialog";
@@ -357,6 +358,14 @@ const Security = () => {
     try {
       const result = await authApi.sessions(ticket.signal);
       if (!isActionCurrent(ticket)) return;
+      if (!isValidSessionInventory(result)) {
+        updatePresentation((current) => ({
+          ...current,
+          error:
+            "El servidor devolvió un inventario de sesiones inválido. El cierre sigue sin confirmarse; no repetimos ninguna operación.",
+        }));
+        return;
+      }
       setSnapshotState((current) =>
         current?.scopeKey === authScopeKey
           ? {
