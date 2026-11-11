@@ -24,6 +24,16 @@ La ejecución real del workflow `verify` de B132 (job Production dependency audi
 
 Se imprime solo un resumen JSON: cuentas, códigos, issues referidos; no se vuelcan rutas internas ni payloads arbitrarios de los avisos.
 
+## Reconciliación del clasificador B301 — 11/11/2026
+
+Los registros modernos de npm pueden agrupar **múltiples GHSAs bajo un único paquete HIGH**. La implementación B133 original sólo leía el primer `via` con URL al convertir `vulnerabilities` y podía identificar un aviso conocido mientras dejaba otros sin clasificar.
+
+El clasificador ahora examina todos los identificadores GHSA en `via` y marca `UNREVIEWED_HIGH_OR_CRITICAL` si alguno no coincide exactamente con el paquete/severidad conocidos. También trata referencias indirectas en texto, `via` ausente o metadatos no identificables como hallazgos no revisados. El conteo del JSON moderno sigue expresándose por paquete afectado, por lo que no se confunden varias GHSAs del mismo paquete con múltiples paquetes.
+
+Este cambio sólo mejora el **diagnóstico fail-closed**; no corrige bibliotecas vulnerables, no cambia el lockfile, no añade excepciones y no autoriza merge/release con HIGH activas. La regresión se ejercita con avisos mezclados, indirectos y repetidos. La fuente de verdad para bloqueos vigentes sigue siendo el escaneo real exact-head.
+
+Nota histórica: [GHSA-vfj7-8cjw-p6xm](https://github.com/advisories/GHSA-vfj7-8cjw-p6xm) fue retirado el 23/10/2026; las observaciones anteriores sobre `braces` se conservan como evidencia temporal, no como garantía de que el advisory siga activo.
+
 ## Integración y uso
 
 ```sh
