@@ -340,4 +340,24 @@ assert.match(b294ReportCtrl, /outcome: "none" \| "confirmed" \| "uncertain"/u);
 assert.match(b294ReportCtrl, /current\.outcome !== "none"/u);
 assert.match(b294ReportPolicy, /ORGANIZATION_REPORT_DETAILS_MAX_LENGTH = 1500/u);
 
+const b295Api = await read('apps/mobile/src/features/organizations/organizations-api.ts');
+const b295Detail = await read('apps/mobile/src/features/organizations/organization-detail-screen.tsx');
+const b295ReportController = await read('apps/mobile/src/features/organizations/organization-report-controller.ts');
+const b295ReportAction = await read('apps/mobile/src/features/organizations/organization-report-action.tsx');
+const b295ReportPolicy = await read('apps/mobile/src/features/organizations/organization-report-policy.ts');
+assert.match(b295Api, /reportPost\(/u);
+assert.match(b295Api, /encodeURIComponent\(postId\)[\s\S]*?"\/reports"/u);
+assert.match(b295Api, /reportEvent\(/u);
+assert.match(b295Api, /encodeURIComponent\(eventId\)[\s\S]*?"\/reports"/u);
+assert.match(b295Detail, /<OrganizationReportAction[\s\S]*?targetType="post"/u);
+assert.match(b295Detail, /<OrganizationReportAction[\s\S]*?targetType="event"/u);
+assert.match(b295Detail, /controller\.loadUpcomingEvents/u);
+assert.match(b295Detail, /onShareExternal=\{\(\) => void shareEvent\(event\)\}/u);
+assert.match(b295ReportController, /outcome: "none" \| "confirmed" \| "uncertain"/u);
+assert.match(b295ReportController, /confirmedReportReason\(response\)/u);
+assert.match(b295ReportController, /"INVALID_REPORT_ACK"/u);
+assert.match(b295ReportController, /current\.outcome !== "none"/u);
+assert.match(b295ReportAction, /ORGANIZATION_REPORT_REASONS\.map/u);
+assert.match(b295ReportPolicy, /ORGANIZATION_REPORT_DETAILS_MAX_LENGTH = 1500/u);
+
 console.log('PASS Web Organizations authority/source contract');
