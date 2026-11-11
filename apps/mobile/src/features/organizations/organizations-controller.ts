@@ -797,6 +797,58 @@ export class MobileOrganizationDetailController {
     }
   }
 
+  async loadUpcomingEvents(
+    authorityKey: string,
+    organizationId: string,
+  ): Promise<void> {
+    const current = this.currentReady(authorityKey, organizationId);
+    if (!current || current.busy || this.active) return;
+
+    this.requestedUpcomingEventCursors.clear();
+    const operation = this.begin(authorityKey);
+    this.publish({
+      ...current,
+      busy: "events-filter",
+      failure: null,
+      notice: null,
+    });
+
+    try {
+      const page = await this.api.events(
+        organizationId,
+        undefined,
+        operation.controller.signal,
+        new Date().toISOString(),
+      );
+      if (!this.isCurrent(operation, organizationId)) return;
+      const latest = this.currentReady(authorityKey, organizationId);
+      if (!latest) return;
+      this.publish({
+        ...latest,
+        eventView: "upcoming",
+        upcomingEvents: page.items,
+        upcomingEventsNextCursor: page.nextCursor,
+        busy: null,
+        failure: null,
+      });
+    } catch (error) {
+      if (!this.isCurrent(operation, organizationId)) return;
+      this.publishFailureOnReady(
+        authorityKey,
+        organizationId,
+        mobileOrganizationsFailure(error),
+      );
+    } finally {
+      this.finish(operation);
+    }
+  }
+
+  showAllEvents(authorityKey: string, organizationId: string): void {
+    const current = this.currentReady(authorityKey, organizationId);
+    if (!current || current.busy || this.active) return;
+    this.publish({ ...current, eventView: "all", failure: null, notice: null });
+  }
+
   suspend(authorityKey: string): void {
     if (authorityKey !== this.authorityKey) return;
     this.generation += 1;
