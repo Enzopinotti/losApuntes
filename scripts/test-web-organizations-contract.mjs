@@ -5,6 +5,13 @@ import {
   appendUniqueOrganizations,
   organizationDirectoryCursorRepeats,
 } from '../apps/web/src/features/organizations/organization-directory-pagination.mjs';
+import {
+  organizationDirectoryFiltersFromParams,
+  organizationDirectorySearchParams,
+  organizationDirectoryInstitutionParams,
+  organizationDirectoryClearParams,
+  organizationDirectoryListHref,
+} from '../apps/web/src/features/organizations/organization-directory-navigation.mjs';
 
 const alreadyVisited = new Set(['cursor-1', 'cursor-2']);
 assert.equal(organizationDirectoryCursorRepeats(alreadyVisited, 'cursor-3', 'cursor-3'), true);
@@ -78,7 +85,46 @@ assert.match(directory, /filterInstitution\?\.id,\s*listState/u);
 assert.match(directory, /organizationsApi\.searchInstitutions\(\s*filterInstitutionQuery\.trim\(\),\s*ticket\.signal/u);
 assert.match(directory, /id="organizations-filter-institution"/u);
 assert.match(directory, /No encontramos instituciones con ese nombre\./u);
-assert.match(directory, /setFilterInstitutionSelection\(\{\s*authScopeKey,\s*institution: option/u);
+assert.match(directory, /updateDirectoryInstitution\(option\)/u);
+assert.match(directory, /setFilterInstitutionSelection\(/u);
+assert.match(directory, /organizationDirectoryFiltersFromParams\(searchParams\)/u);
+assert.match(directory, /organizationDirectoryListHref\(searchParams\)/u);
+assert.match(directory, /invalidDirectoryFilters/u);
+assert.match(directory, /q: appliedQuery \|\| undefined/u);
+assert.match(directory, /type: appliedType \|\| undefined/u);
+assert.match(directory, /verificationState: appliedVerificationState \|\| undefined/u);
+assert.match(directory, /setQuery\(appliedQuery\)/u);
+assert.match(directory, /setType\(appliedType\)/u);
+assert.match(directory, /setVerificationState\(appliedVerificationState\)/u);
+assert.match(directory, /organizationDirectorySearchParams\(/u);
+assert.match(directory, /organizationDirectoryClearParams\(current\)/u);
+assert.match(directory, /organizationDirectoryInstitutionParams\(/u);
+assert.match(directory, /role="search"/u);
+assert.match(directory, /Copiar búsqueda/u);
+assert.match(directory, /Abrir enlace compartible/u);
+assert.match(directory, /Limpiar todos los filtros/u);
+assert.match(directory, /no mostraremos|No mostraremos/u);
+assert.match(directory, /OrganizationDirectoryShare\.scss/u);
+assert.deepEqual(
+  organizationDirectoryFiltersFromParams(new URLSearchParams('q=club&type=club')),
+  { q: 'club', type: 'club', verificationState: '', institutionId: '' },
+);
+assert.equal(
+  organizationDirectorySearchParams(new URLSearchParams('q=old'), 'club', 'lab', 'verified').toString(),
+  'q=club&type=lab&verificationState=verified',
+);
+assert.equal(
+  organizationDirectoryInstitutionParams(new URLSearchParams('q=club'), '123e4567-e89b-42d3-a456-426614174000').get('institutionId'),
+  '123e4567-e89b-42d3-a456-426614174000',
+);
+assert.equal(
+  organizationDirectoryClearParams(new URLSearchParams('q=club&type=club')).toString(),
+  '',
+);
+assert.equal(
+  organizationDirectoryListHref(new URLSearchParams('q=club&cursor=secret')),
+  '/organizations?q=club',
+);
 assert.match(directory, /Quitar filtro/u);
 assert.match(service, /if \(input\.cursor\) query\.set\("cursor", input\.cursor\)/u);
 assert.match(directory, /requestedCursorsRef\.current/u);
