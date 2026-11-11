@@ -301,7 +301,11 @@ const Security = () => {
             kind: key === "all-sessions" ? "all" : "one",
             targetId: key.startsWith("session:") ? key.slice(8) : null,
             currentSession:
-              key.startsWith("session:") && key.slice(8) === session?.id,
+              key.startsWith("session:") &&
+              (key.slice(8) === session?.id ||
+                sessions.some(
+                  (item) => item.id === key.slice(8) && item.current,
+                )),
           },
         };
         uncertainRevocationRef.current = pending;
@@ -401,7 +405,7 @@ const Security = () => {
       if (!isActionCurrent(ticket)) return;
       if (
         isAuthApiError(nextError) &&
-        (nextError.status === 401 || nextError.status === 403)
+        nextError.status === 401
       ) {
         uncertainRevocationRef.current = null;
         setUncertainRevocationState(null);
