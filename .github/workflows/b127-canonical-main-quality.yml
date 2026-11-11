@@ -47,6 +47,10 @@ jobs:
           cache: pnpm
       - name: Install frozen workspace
         run: pnpm install --frozen-lockfile
+      - name: Temporary Network Prettier exact diff (diagnostic)
+        run: |
+          pnpm --filter @losapuntes/web exec prettier src/pages/Network.tsx > /tmp/network.prettier.tsx
+          diff -u apps/web/src/pages/Network.tsx /tmp/network.prettier.tsx || true
       - name: Check all canonical formatting without modifying source
         run: |
           pnpm --filter @losapuntes/api format:check
