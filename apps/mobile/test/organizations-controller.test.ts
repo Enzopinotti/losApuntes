@@ -753,10 +753,10 @@ test("upcoming event cursor cycles stop without altering all-event pages", async
   assert.equal(snapshot.kind, "ready");
   if (snapshot.kind !== "ready") return;
   assert.equal(snapshot.eventView, "upcoming");
-  assert.deepEqual(snapshot.upcomingEvents.map((item) => item.id), [
-    "future-1",
-    "future-2",
-  ]);
+  assert.deepEqual(
+    snapshot.upcomingEvents.map((item) => item.id),
+    ["future-1", "future-2"],
+  );
   assert.equal(snapshot.upcomingEventsNextCursor, null);
   assert.equal(snapshot.organization.eventsNextCursor, "all-next");
   assert.equal(snapshot.failure?.code, "ORGANIZATION_DETAIL_CURSOR_REPEATED");
@@ -799,7 +799,10 @@ test("upcoming event request failures preserve the previous all-event view for r
   if (snapshot.kind !== "ready") return;
   assert.equal(snapshot.eventView, "all");
   assert.equal(snapshot.failure?.kind, "server_unavailable");
-  assert.deepEqual(snapshot.organization.events.map((item) => item.id), ["all-1"]);
+  assert.deepEqual(
+    snapshot.organization.events.map((item) => item.id),
+    ["all-1"],
+  );
 
   await controller.loadUpcomingEvents("session-a:org:org-b", "org-b");
   snapshot = controller.getSnapshot();
@@ -808,7 +811,10 @@ test("upcoming event request failures preserve the previous all-event view for r
   if (snapshot.kind === "ready") {
     assert.equal(snapshot.eventView, "upcoming");
     assert.equal(snapshot.failure, null);
-    assert.deepEqual(snapshot.upcomingEvents.map((item) => item.id), ["future-1"]);
+    assert.deepEqual(
+      snapshot.upcomingEvents.map((item) => item.id),
+      ["future-1"],
+    );
   }
 });
 
