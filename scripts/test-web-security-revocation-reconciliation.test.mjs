@@ -8,7 +8,14 @@ import {
 } from "../apps/web/src/features/auth/security-session-reconciliation.mjs";
 
 const inventory = (sessions, truncated = false) => ({
-  sessions: sessions.map((id) => ({ id })),
+  sessions: sessions.map((id) => ({
+    id,
+    clientType: "web",
+    current: id === "current",
+    createdAt: "2026-11-11T10:00:00.000Z",
+    lastSeenAt: "2026-11-11T10:30:00.000Z",
+    expiresAt: "2026-11-12T10:00:00.000Z",
+  })),
   truncated,
   limit: 20,
 });
@@ -86,6 +93,15 @@ test("only valid bounded session inventories may reach the Web UI", () => {
     { sessions: null, truncated: false, limit: 20 },
     { sessions: [{ id: null }], truncated: false, limit: 20 },
     { sessions: [{ id: "" }], truncated: false, limit: 20 },
+    { sessions: [{ id: "partial" }], truncated: false, limit: 20 },
+    {
+      ...inventory(["current"]),
+      sessions: [{ ...inventory(["current"]).sessions[0], current: "false" }],
+    },
+    {
+      ...inventory(["current"]),
+      sessions: [{ ...inventory(["current"]).sessions[0], expiresAt: "not-a-date" }],
+    },
     { sessions: [], truncated: false, limit: 0 },
     { sessions: [], truncated: false, limit: Infinity },
   ]) {
@@ -103,6 +119,15 @@ test("malformed session inventory fails closed", () => {
     { sessions: "hidden", truncated: false, limit: 20 },
     { sessions: [{ id: null }], truncated: false, limit: 20 },
     { sessions: [{ id: "" }], truncated: false, limit: 20 },
+    { sessions: [{ id: "partial" }], truncated: false, limit: 20 },
+    {
+      ...inventory(["current"]),
+      sessions: [{ ...inventory(["current"]).sessions[0], current: "false" }],
+    },
+    {
+      ...inventory(["current"]),
+      sessions: [{ ...inventory(["current"]).sessions[0], expiresAt: "not-a-date" }],
+    },
     { sessions: [], truncated: false, limit: 0 },
     { sessions: [], truncated: false, limit: NaN },
   ]) {
