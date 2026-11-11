@@ -75,3 +75,64 @@ test('zero high still requires separate release qualification', () => {
   assert.deepEqual(result.reasonCodes, []);
   assert.equal(result.productionAuditCertified, false);
 });
+
+
+test('modern npm advisories inspect every GHSA within the same HIGH package', () => {
+  const result = classifyProductionAudit({
+    vulnerabilities: {
+      'node-forge': {
+        severity: 'high',
+        via: [
+          { severity: 'high', url: 'https://github.com/advisories/GHSA-86w9-cpqp-85rv' },
+          { severity: 'high', url: 'https://github.com/advisories/GHSA-9999-new1-new2' },
+        ],
+      },
+    },
+    metadata: { vulnerabilities: { info: 0, low: 0, moderate: 0, high: 1, critical: 0 } },
+  });
+  assert.equal(result.status, 'HOLD');
+  assert.deepEqual(result.knownIssueNumbers, [133]);
+  assert.equal(result.newHighCount, 1);
+  assert.deepEqual(result.reasonCodes, ['ACTIVE_HIGH_OR_CRITICAL', 'UNREVIEWED_HIGH_OR_CRITICAL']);
+  assert.equal(result.productionAuditCertified, false);
+});
+
+test('modern npm high cannot hide an indirect or unidentified via behind a known GHSA', () => {
+  for (const extraVia of ['nested-transitive-package', { severity: 'high', title: 'Undisclosed advisory' }]) {
+    const result = classifyProductionAudit({
+      vulnerabilities: {
+        'node-forge': {
+          severity: 'high',
+          via: [
+            { url: 'https://github.com/advisories/GHSA-86w9-cpqp-85rv' },
+            extraVia,
+          ],
+        },
+      },
+      metadata: { vulnerabilities: { info: 0, low: 0, moderate: 0, high: 1, critical: 0 } },
+    });
+    assert.equal(result.status, 'HOLD');
+    assert.equal(result.newHighCount, 1);
+    assert.deepEqual(result.knownIssueNumbers, [133]);
+    assert.ok(result.reasonCodes.includes('UNREVIEWED_HIGH_OR_CRITICAL'));
+  }
+});
+
+test('repeated known modern GHSA remains one known affected package and never authorizes release', () => {
+  const result = classifyProductionAudit({
+    vulnerabilities: {
+      braces: {
+        severity: 'high',
+        via: [
+          { url: 'https://github.com/advisories/GHSA-vfj7-8cjw-p6xm' },
+          { id: 'GHSA-vfj7-8cjw-p6xm' },
+        ],
+      },
+    },
+    metadata: { vulnerabilities: { info: 0, low: 0, moderate: 0, high: 1, critical: 0 } },
+  });
+  assert.equal(result.status, 'HOLD');
+  assert.deepEqual(result.knownIssueNumbers, [141]);
+  assert.equal(result.newHighCount, 0);
+  assert.equal(result.productionAuditCertified, false);
+});
