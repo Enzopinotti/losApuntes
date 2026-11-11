@@ -10,6 +10,19 @@ import type {
 import type { SessionController } from "@/features/session/session-controller";
 import { ApiRequestError, type MobileApiClient } from "@/services/api/client";
 
+import type {
+  OrganizationReportInput,
+  OrganizationReportReason,
+} from "./organization-report-policy";
+
+export type OrganizationReportResponse = {
+  report: {
+    id: string;
+    reason: OrganizationReportReason;
+    status: "pending";
+  };
+};
+
 export type OrganizationDirectoryInput = {
   q?: string;
   type?: OrganizationType;
@@ -52,6 +65,20 @@ export interface MobileOrganizationsTransport {
     signal?: AbortSignal,
     from?: string,
   ): Promise<OrganizationEventPage>;
+  reportPost(
+    credential: string,
+    id: string,
+    postId: string,
+    input: OrganizationReportInput,
+    signal?: AbortSignal,
+  ): Promise<OrganizationReportResponse>;
+  reportEvent(
+    credential: string,
+    id: string,
+    eventId: string,
+    input: OrganizationReportInput,
+    signal?: AbortSignal,
+  ): Promise<OrganizationReportResponse>;
 }
 
 export interface MobileOrganizationsApiContract {
@@ -82,6 +109,18 @@ export interface MobileOrganizationsApiContract {
     signal?: AbortSignal,
     from?: string,
   ): Promise<OrganizationEventPage>;
+  reportPost(
+    id: string,
+    postId: string,
+    input: OrganizationReportInput,
+    signal?: AbortSignal,
+  ): Promise<OrganizationReportResponse>;
+  reportEvent(
+    id: string,
+    eventId: string,
+    input: OrganizationReportInput,
+    signal?: AbortSignal,
+  ): Promise<OrganizationReportResponse>;
 }
 
 export class MobileOrganizationsHttpTransport implements MobileOrganizationsTransport {
