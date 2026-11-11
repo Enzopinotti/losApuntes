@@ -15,10 +15,8 @@ export function isUncertainSessionRevocationError(error) {
 
 // The auth session inventory is bounded. Missing from a *truncated* list
 // never confirms that the target was revoked.
-export function sessionRevocationReconciliation(targetId, snapshot) {
-  if (
-    typeof targetId !== "string" ||
-    !targetId ||
+export function isValidSessionInventory(snapshot) {
+  return !(
     snapshot === null ||
     typeof snapshot !== "object" ||
     !Array.isArray(snapshot.sessions) ||
@@ -32,7 +30,11 @@ export function sessionRevocationReconciliation(targetId, snapshot) {
         typeof session.id !== "string" ||
         !session.id,
     )
-  ) {
+  );
+}
+
+export function sessionRevocationReconciliation(targetId, snapshot) {
+  if (typeof targetId !== "string" || !targetId || !isValidSessionInventory(snapshot)) {
     return "unknown";
   }
 
