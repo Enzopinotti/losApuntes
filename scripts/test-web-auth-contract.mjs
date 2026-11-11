@@ -215,5 +215,16 @@ assert.equal(
 );
 assert.doesNotMatch(security, /setTimeout\([\s\S]*?revokeSession/u);
 assert.doesNotMatch(security, /localStorage|sessionStorage/u);
+assert.match(security, /security-revocation-uncertain/u);
+assert.match(security, /SecurityRevocation\.scss/u);
+const securityRecoveryStyles = await read(
+  'apps/web/src/pages/SecurityRevocation.scss',
+);
+assert.match(
+  securityRecoveryStyles,
+  /\.security-revocation-uncertain button\s*\{[^}]*min-height:\s*44px/su,
+);
+assert.match(securityRecoveryStyles, /:focus-visible/u);
+assert.doesNotMatch(securityRecoveryStyles, /localStorage|sessionStorage/u);
 
 console.log('PASS Web Auth security contract');
