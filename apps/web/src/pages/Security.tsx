@@ -19,7 +19,15 @@ import type {
 } from "../features/auth/interfaces";
 import { newPasswordValidationMessage } from "../features/auth/passwordPolicy";
 import PasswordField from "../features/auth/PasswordField";
-import { authApi } from "../features/auth/services/authService";
+import {
+  authApi,
+  isAuthApiError,
+} from "../features/auth/services/authService";
+import { SecurityActionGate } from "../features/auth/security-action-gate";
+import {
+  isUncertainSessionRevocationError,
+  sessionRevocationReconciliation,
+} from "../features/auth/security-session-reconciliation.mjs";
 import { ConfirmDialog } from "../shared/components/ConfirmDialog";
 import {
   useAsyncAuthorityFence,
@@ -49,6 +57,12 @@ type SecurityPresentation = {
   feedback: string | null;
   error: string | null;
   requestId: string | undefined;
+};
+
+type UncertainSessionRevocation = {
+  kind: "one" | "all";
+  targetId: string | null;
+  currentSession: boolean;
 };
 
 type SecurityDrafts = {
@@ -92,6 +106,19 @@ const Security = () => {
     isCurrent: isActionCurrent,
     finish: finishAction,
   } = useAsyncAuthorityFence(`security-action:${authScopeKey}`);
+  // Prevent repeat clicks before React can render the busy state.
+  const actionGateRef = useRef(new SecurityActionGate());
+  // A ref additionally fences an uncertain outcome before the next render.
+  const uncertainRevocationRef = useRef<
+    Scoped<UncertainSessionRevocation> | null
+  >(null);
+  const [uncertainRevocationState, setUncertainRevocationState] = useState<
+    Scoped<UncertainSessionRevocation> | null
+  >(null);
+  const uncertainSessionRevocation =
+    uncertainRevocationState?.scopeKey === authScopeKey
+      ? uncertainRevocationState.value
+      : null;
 
   const [snapshotState, setSnapshotState] =
     useState<Scoped<SecuritySnapshot> | null>(null);
@@ -239,8 +266,14 @@ const Security = () => {
     complete: (result: T, ticket: AsyncAuthorityTicket) => Promise<void> | void,
     fallbackMessage: string,
   ) => {
+    if (uncertainRevocationRef.current?.scopeKey === authScopeKey) return;
+    const lease = actionGateRef.current.tryAcquire(authScopeKey, key);
+    if (!lease) return;
     const ticket = beginAction();
-    if (!isActionCurrent(ticket)) return;
+    if (!isActionCurrent(ticket)) {
+      actionGateRef.current.release(lease);
+      return;
+    }
     updatePresentation((current) => ({
       ...current,
       busyAction: key,
@@ -255,12 +288,36 @@ const Security = () => {
       await complete(result, ticket);
     } catch (nextError) {
       if (!isActionCurrent(ticket)) return;
-      updatePresentation((current) => ({
-        ...current,
-        error: authErrorMessage(nextError, fallbackMessage),
-        requestId: authErrorRequestId(nextError),
-      }));
+      if (
+        (key === "all-sessions" || key.startsWith("session:")) &&
+        isUncertainSessionRevocationError(nextError)
+      ) {
+        const pending: Scoped<UncertainSessionRevocation> = {
+          scopeKey: authScopeKey,
+          value: {
+            kind: key === "all-sessions" ? "all" : "one",
+            targetId: key.startsWith("session:") ? key.slice(8) : null,
+            currentSession:
+              key.startsWith("session:") && key.slice(8) === session?.id,
+          },
+        };
+        uncertainRevocationRef.current = pending;
+        setUncertainRevocationState(pending);
+        updatePresentation((current) => ({
+          ...current,
+          error:
+            "No sabemos si el servidor cerró la sesión. Para evitar un segundo cierre accidental, verificá el estado antes de continuar.",
+          requestId: authErrorRequestId(nextError),
+        }));
+      } else {
+        updatePresentation((current) => ({
+          ...current,
+          error: authErrorMessage(nextError, fallbackMessage),
+          requestId: authErrorRequestId(nextError),
+        }));
+      }
     } finally {
+      actionGateRef.current.release(lease);
       if (finishAction(ticket)) {
         updatePresentation((current) => ({ ...current, busyAction: null }));
       }
