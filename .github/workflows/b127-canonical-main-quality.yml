@@ -49,7 +49,7 @@ jobs:
         run: pnpm install --frozen-lockfile
       - name: Diagnostic Prettier-only patch for Notifications
         run: |
-          pnpm exec prettier apps/web/src/pages/Notifications.tsx > /tmp/notifications.prettier.tsx
+          pnpm --filter @losapuntes/web exec prettier src/pages/Notifications.tsx > /tmp/notifications.prettier.tsx
           diff -u apps/web/src/pages/Notifications.tsx /tmp/notifications.prettier.tsx || true
       - name: Check all canonical formatting without modifying source
         run: |
