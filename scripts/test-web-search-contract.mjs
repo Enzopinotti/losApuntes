@@ -505,6 +505,14 @@ assert.match(
 assert.match(resourcesService, /method: "PUT", signal/u);
 
 const resourcesPage = await read('apps/web/src/pages/Resources.tsx');
+assert.match(
+  resourcesPage,
+  /const savedMode = searchParams\.get\("view"\) === "saved"/u,
+  'Saved-library URLs must restore their view after reload or browser navigation',
+);
+assert.match(resourcesPage, /if \(!savedMode\) nextParams\.set\("view", "saved"\)/u);
+assert.match(resourcesPage, /setSearchParams\(nextParams\)/u);
+assert.doesNotMatch(resourcesPage, /setSavedMode/u);
 assert.match(resourcesPage, /searchReturnHref\(location\.state\)/u);
 assert.match(resourcesPage, /resourceReturnTo/u);
 assert.match(resourcesPage, /Volver a la búsqueda/u);
