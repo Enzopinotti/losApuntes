@@ -5,7 +5,7 @@ import {
   useState,
   type FormEvent,
 } from "react";
-import { Link } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 import { useAuth } from "../contexts/useAuth";
 import type {
   AcademicInstitutionOption,
@@ -17,6 +17,13 @@ import {
   appendUniqueOrganizations,
   organizationDirectoryCursorRepeats,
 } from "../features/organizations/organization-directory-pagination.mjs";
+import {
+  organizationDirectoryClearParams,
+  organizationDirectoryFiltersFromParams,
+  organizationDirectoryInstitutionParams,
+  organizationDirectoryListHref,
+  organizationDirectorySearchParams,
+} from "../features/organizations/organization-directory-navigation.mjs";
 import {
   isOrganizationsApiError,
   organizationsApi,
@@ -57,31 +64,52 @@ function messageFor(error: unknown): string {
 const Organizations = () => {
   const { status, user, session } = useAuth();
   const authenticated = status === "authenticated";
+  const [searchParams, setSearchParams] = useSearchParams();
+  const appliedFilters = organizationDirectoryFiltersFromParams(searchParams);
+  const invalidDirectoryFilters = appliedFilters === null;
+  const appliedQuery = appliedFilters?.q ?? "";
+  const appliedType = (appliedFilters?.type ?? "") as OrganizationType | "";
+  const appliedVerificationState = (appliedFilters?.verificationState ??
+    "") as OrganizationVerificationState | "";
+  const appliedInstitutionId = appliedFilters?.institutionId ?? "";
+  const directoryLink = organizationDirectoryListHref(searchParams);
   const authScopeKey = [
     status,
     user?.id ?? "anonymous",
     session?.id ?? "no-session",
   ].join(":");
-  const [query, setQuery] = useState("");
-  const [type, setType] = useState<OrganizationType | "">("");
+  // Drafts are distinct from URL-applied filters; typing does not fetch.
+  const [query, setQuery] = useState(appliedQuery);
+  const [type, setType] = useState<OrganizationType | "">(appliedType);
   const [verificationState, setVerificationState] = useState<
     OrganizationVerificationState | ""
-  >("");
+  >(appliedVerificationState);
+  const [searchSubmitError, setSearchSubmitError] = useState<string | null>(null);
+  useEffect(() => {
+    // Restore applied filters on Back/Forward and new shared links.
+    setQuery(appliedQuery);
+    setType(appliedType);
+    setVerificationState(appliedVerificationState);
+    setSearchSubmitError(null);
+  }, [appliedQuery, appliedType, appliedVerificationState]);
   const [filterInstitutionQuery, setFilterInstitutionQuery] = useState("");
   const [filterInstitutionSelection, setFilterInstitutionSelection] = useState<{
     authScopeKey: string;
     institution: AcademicInstitutionOption;
   } | null>(null);
   const filterInstitution =
-    filterInstitutionSelection?.authScopeKey === authScopeKey
+    filterInstitutionSelection?.authScopeKey === authScopeKey &&
+    filterInstitutionSelection.institution.id === appliedInstitutionId
       ? filterInstitutionSelection.institution
-      : null;
+      : appliedInstitutionId
+        ? { id: appliedInstitutionId, name: "la institución del enlace" }
+        : null;
   const directoryScopeKey = [
     "organizations-directory",
     authScopeKey,
-    query.trim(),
-    type || "all-types",
-    verificationState || "all-verification-states",
+    invalidDirectoryFilters ? "invalid-directory-link" : appliedQuery,
+    appliedType || "all-types",
+    appliedVerificationState || "all-verification-states",
     filterInstitution?.id ?? "all-institutions",
   ].join(":");
   const {
@@ -150,6 +178,11 @@ const Organizations = () => {
   } | null>(null);
   const feedback =
     feedbackState?.scopeKey === authScopeKey ? feedbackState.message : null;
+  const [directoryShareFeedback, setDirectoryShareFeedback] = useState<{
+    scopeKey: string;
+    message: string;
+  } | null>(null);
+  const shareScopeKey = [authScopeKey, directoryLink ?? "invalid"].join(":");
 
   const updateFollowing = useCallback(
     (organizationId: string, following: boolean) => {
@@ -233,12 +266,23 @@ const Organizations = () => {
     }));
     setErrorState(null);
     setPaginationErrorState(null);
+    if (invalidDirectoryFilters) {
+      setListState({
+        scopeKey: directoryScopeKey,
+        items: [],
+        loading: false,
+        loadingMore: false,
+        nextCursor: null,
+      });
+      finishDirectoryLoad(ticket);
+      return;
+    }
     try {
       const result = await organizationsApi.search(
         {
-          q: query.trim() || undefined,
-          type: type || undefined,
-          verificationState: verificationState || undefined,
+          q: appliedQuery || undefined,
+          type: appliedType || undefined,
+          verificationState: appliedVerificationState || undefined,
           institutionId: filterInstitution?.id,
         },
         ticket.signal,
@@ -272,15 +316,22 @@ const Organizations = () => {
     finishDirectoryLoad,
     isDirectoryLoadCurrent,
     filterInstitution?.id,
-    query,
-    type,
-    verificationState,
+    appliedQuery,
+    appliedType,
+    appliedVerificationState,
+    invalidDirectoryFilters,
   ]);
   const loadMore = useCallback(async () => {
     const current =
       listState?.scopeKey === directoryScopeKey ? listState : null;
     const cursor = current?.nextCursor;
-    if (!current || current.loading || current.loadingMore || !cursor) return;
+    if (
+      invalidDirectoryFilters ||
+      !current ||
+      current.loading ||
+      current.loadingMore ||
+      !cursor
+    ) return;
     if (paginationRequestRef.current?.scopeKey === directoryScopeKey) return;
     const history =
       requestedCursorsRef.current?.scopeKey === directoryScopeKey
@@ -319,9 +370,9 @@ const Organizations = () => {
     try {
       const result = await organizationsApi.search(
         {
-          q: query.trim() || undefined,
-          type: type || undefined,
-          verificationState: verificationState || undefined,
+          q: appliedQuery || undefined,
+          type: appliedType || undefined,
+          verificationState: appliedVerificationState || undefined,
           institutionId: filterInstitution?.id,
           cursor,
         },
@@ -379,9 +430,10 @@ const Organizations = () => {
     isDirectoryLoadCurrent,
     filterInstitution?.id,
     listState,
-    query,
-    type,
-    verificationState,
+    appliedQuery,
+    appliedType,
+    appliedVerificationState,
+    invalidDirectoryFilters,
   ]);
 
   const loadRef = useRef(load);
