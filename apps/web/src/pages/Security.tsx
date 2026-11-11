@@ -336,8 +336,8 @@ const Security = () => {
       "verify-revocation",
     );
     if (!lease) return;
-    const ticket = beginLoad();
-    if (!isLoadCurrent(ticket)) {
+    const ticket = beginAction();
+    if (!isActionCurrent(ticket)) {
       actionGateRef.current.release(lease);
       return;
     }
@@ -351,7 +351,7 @@ const Security = () => {
 
     try {
       const result = await authApi.sessions(ticket.signal);
-      if (!isLoadCurrent(ticket)) return;
+      if (!isActionCurrent(ticket)) return;
       setSnapshotState((current) =>
         current?.scopeKey === authScopeKey
           ? {
@@ -397,7 +397,7 @@ const Security = () => {
               : "Verificamos con el servidor que esa sesión ya no está activa.",
       }));
     } catch (nextError) {
-      if (!isLoadCurrent(ticket)) return;
+      if (!isActionCurrent(ticket)) return;
       if (
         isAuthApiError(nextError) &&
         (nextError.status === 401 || nextError.status === 403)
@@ -417,7 +417,7 @@ const Security = () => {
       }));
     } finally {
       actionGateRef.current.release(lease);
-      if (finishLoad(ticket)) {
+      if (finishAction(ticket)) {
         updatePresentation((current) => ({ ...current, busyAction: null }));
       }
     }
@@ -770,7 +770,11 @@ const Security = () => {
                       googlePassword: event.target.value,
                     }))
                   }
-                  disabled={!methods?.passwordConfigured || busyAction !== null}
+                  disabled={
+                    !methods?.passwordConfigured ||
+                    busyAction !== null ||
+                    uncertainSessionRevocation !== null
+                  }
                 />
 
                 {methods?.googleConnected ? (
@@ -780,7 +784,8 @@ const Security = () => {
                     disabled={
                       !methods.passwordConfigured ||
                       !googlePassword ||
-                      busyAction !== null
+                      busyAction !== null ||
+                      uncertainSessionRevocation !== null
                     }
                   >
                     Desconectar Google
@@ -792,7 +797,8 @@ const Security = () => {
                     disabled={
                       !methods?.passwordConfigured ||
                       !googlePassword ||
-                      busyAction !== null
+                      busyAction !== null ||
+                      uncertainSessionRevocation !== null
                     }
                   >
                     Conectar Google
