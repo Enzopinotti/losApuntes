@@ -818,7 +818,11 @@ const Questions = () => {
   );
 
   const applyDiscoverySearch = () => {
-    const next = questionDiscoverySearchParams(searchParams, query, statusFilter);
+    const next = questionDiscoverySearchParams(
+      searchParams,
+      query,
+      statusFilter,
+    );
     if (!next) {
       setSearchSubmitError(
         "La búsqueda debe tener entre 2 y 120 caracteres, o estar vacía.",
@@ -850,7 +854,8 @@ const Questions = () => {
       );
       setShareFeedback({
         scopeKey,
-        message: "Enlace de búsqueda copiado con los filtros públicos aplicados.",
+        message:
+          "Enlace de búsqueda copiado con los filtros públicos aplicados.",
       });
     } catch {
       setShareFeedback({
