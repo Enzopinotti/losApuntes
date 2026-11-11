@@ -1,14 +1,16 @@
 import { useRef, useState } from "react";
+import { Link } from "react-router-dom";
 import { resourcesApi } from "../resources/services/resourcesService";
 import { useAsyncAuthorityFence } from "../../shared/useAsyncAuthorityFence";
 import {
   isSaveConfirmed,
   saveFailureMessage,
+  saveOutcomeIsUncertain,
 } from "./search-save-feedback.mjs";
 
 type SaveState = {
   scopeKey: string;
-  phase: "saving" | "saved" | "failed";
+  phase: "saving" | "saved" | "failed" | "uncertain";
   message: string | null;
 };
 
@@ -30,9 +32,10 @@ export function SearchSaveAction({
   const current = state?.scopeKey === scopeKey ? state : null;
   const saving = current?.phase === "saving";
   const saved = current?.phase === "saved";
+  const uncertain = current?.phase === "uncertain";
 
   const save = async () => {
-    if (pendingRef.current || saved) return;
+    if (pendingRef.current || saved || uncertain) return;
     pendingRef.current = true;
     const ticket = begin();
     if (!isCurrent(ticket)) {
@@ -56,7 +59,7 @@ export function SearchSaveAction({
       if (!isCurrent(ticket)) return;
       setState({
         scopeKey,
-        phase: "failed",
+        phase: saveOutcomeIsUncertain(error) ? "uncertain" : "failed",
         message: saveFailureMessage(error),
       });
     } finally {
@@ -74,18 +77,33 @@ export function SearchSaveAction({
             ? `Guardando apunte: ${resourceTitle}`
             : saved
               ? `Apunte guardado: ${resourceTitle}`
-              : `Guardar apunte: ${resourceTitle}`
+              : uncertain
+                ? `Guardado sin confirmar: ${resourceTitle}`
+                : `Guardar apunte: ${resourceTitle}`
         }
-        disabled={saving || saved}
+        disabled={saving || saved || uncertain}
         onClick={() => void save()}
       >
-        {saving ? "Guardando…" : saved ? "Guardado" : "Guardar apunte"}
+        {saving
+          ? "Guardando…"
+          : saved
+            ? "Guardado"
+            : uncertain
+              ? "Sin confirmar"
+              : "Guardar apunte"}
       </button>
       {current?.message && (
-        <p role={current.phase === "failed" ? "alert" : "status"}>
+        <p
+          role={
+            current.phase === "failed" || current.phase === "uncertain"
+              ? "alert"
+              : "status"
+          }
+        >
           {current.message}
         </p>
       )}
+      {uncertain && <Link to="/resources?view=saved">Revisar Guardados</Link>}
     </div>
   );
 }

@@ -234,7 +234,7 @@ const Resources = () => {
   const location = useLocation();
   const { resourceId: routeResourceId } = useParams<{ resourceId: string }>();
   const resourceId = routeResourceId?.trim() ?? "";
-  const [searchParams] = useSearchParams();
+  const [searchParams, setSearchParams] = useSearchParams();
   const routeQuery = searchParams.get("q") ?? "";
   const subjectIdFilter = searchParams.get("subjectId") ?? undefined;
   const authenticated = status === "authenticated";
@@ -255,7 +255,7 @@ const Resources = () => {
   const [visibilityFilter, setVisibilityFilter] = useState<
     ResourceVisibility | ""
   >("");
-  const [savedMode, setSavedMode] = useState(false);
+  const savedMode = searchParams.get("view") === "saved";
   const savedView = authenticated && savedMode;
   const listScopeKey = [
     "resources-list",
@@ -1101,7 +1101,9 @@ const Resources = () => {
             className="secondary"
             onClick={() => {
               invalidateListRequest();
-              setSavedMode((current) => !current);
+              const nextParams = new URLSearchParams();
+              if (!savedMode) nextParams.set("view", "saved");
+              setSearchParams(nextParams);
             }}
           >
             {savedMode ? "Ver descubrimiento" : "Ver guardados"}

@@ -10,6 +10,7 @@ import {
 import {
   isSaveConfirmed,
   saveFailureMessage,
+  saveOutcomeIsUncertain,
 } from '../apps/web/src/features/search/search-save-feedback.mjs';
 
 import {
@@ -430,17 +431,44 @@ for (const failure of [
     'Network and runtime errors have an unknown commit outcome',
   );
 }
+for (const rejectedStatus of [400, 401, 403, 404, 409, 410, 422]) {
+  assert.equal(
+    saveOutcomeIsUncertain({ status: rejectedStatus }),
+    false,
+    'Definitively rejected saves must remain retryable after correction',
+  );
+}
+for (const outcome of [
+  null,
+  new Error('network timeout'),
+  { status: 0 },
+  { status: 200, code: 'INVALID_RESPONSE' },
+  { status: 408 },
+  { status: 429 },
+  { status: 503 },
+]) {
+  assert.equal(
+    saveOutcomeIsUncertain(outcome),
+    true,
+    'Transport, timeout, throttling, 5xx and ambiguous ACKs must not trigger blind save retries',
+  );
+}
+assert.match(saveFailureMessage({ status: 400 }), /No pudimos guardar/u);
 const saveAction = await read('apps/web/src/features/search/SearchSaveAction.tsx');
 assert.match(saveAction, /resourcesApi\.save\(resourceId, ticket\.signal\)/u);
 assert.match(saveAction, /isSaveConfirmed\(response\)/u);
 assert.match(saveAction, /saveFailureMessage\(error\)/u);
 assert.match(saveAction, /pendingRef\.current/u);
 assert.match(saveAction, /useAsyncAuthorityFence\(scopeKey\)/u);
-assert.match(saveAction, /disabled=\{saving \|\| saved\}/u);
+assert.match(saveAction, /disabled=\{saving \|\| saved \|\| uncertain\}/u);
 assert.match(
   saveAction,
-  /role=\{current\.phase === "failed" \? "alert" : "status"\}/u,
+  /current\.phase === "failed" \|\| current\.phase === "uncertain"/u,
 );
+assert.match(saveAction, /phase: saveOutcomeIsUncertain\(error\) \? "uncertain" : "failed"/u);
+assert.match(saveAction, /if \(pendingRef\.current \|\| saved \|\| uncertain\) return/u);
+assert.match(saveAction, /to="\/resources\?view=saved"/u);
+assert.match(saveAction, /Revisar Guardados/u);
 assert.doesNotMatch(saveAction, /localStorage|sessionStorage|setItem/u);
 assert.doesNotMatch(saveAction, /Authorization\s*:|Bearer\s+/iu);
 assert.match(page, /import \{ SearchSaveAction \} from/u);
@@ -461,6 +489,8 @@ assert.match(saveStyles, /\.search-profile-actions button:focus-visible/u);
 assert.match(saveStyles, /\.search-profile-actions \[role="status"\]/u);
 assert.match(saveStyles, /\.search-subject-actions \[role="status"\]/u);
 assert.match(saveStyles, /\.search-save-action p\[role="alert"\]/u);
+assert.match(saveStyles, /\.search-save-action a \{/u);
+assert.match(saveStyles, /\.search-save-action a \{[\s\S]*?min-height: 44px/u);
 const resourcesService = await read(
   'apps/web/src/features/resources/services/resourcesService.ts',
 );
@@ -475,6 +505,14 @@ assert.match(
 assert.match(resourcesService, /method: "PUT", signal/u);
 
 const resourcesPage = await read('apps/web/src/pages/Resources.tsx');
+assert.match(
+  resourcesPage,
+  /const savedMode = searchParams\.get\("view"\) === "saved"/u,
+  'Saved-library URLs must restore their view after reload or browser navigation',
+);
+assert.match(resourcesPage, /if \(!savedMode\) nextParams\.set\("view", "saved"\)/u);
+assert.match(resourcesPage, /setSearchParams\(nextParams\)/u);
+assert.doesNotMatch(resourcesPage, /setSavedMode/u);
 assert.match(resourcesPage, /searchReturnHref\(location\.state\)/u);
 assert.match(resourcesPage, /resourceReturnTo/u);
 assert.match(resourcesPage, /Volver a la búsqueda/u);

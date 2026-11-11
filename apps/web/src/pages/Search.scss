@@ -249,6 +249,16 @@
   color: #8b1e1e;
 }
 
+.search-save-action a {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  padding: 0.35rem 0.5rem;
+  border-radius: 8px;
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
 .search-contextual {
   margin-top: 1rem;
   padding: 1.25rem;
