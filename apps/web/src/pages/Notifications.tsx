@@ -19,7 +19,9 @@ import {
   isNotificationReadAllConfirmed,
   isNotificationReadConfirmed,
 } from "../features/community/notification-read-ack.mjs";
-import { NotificationMutationGate } from "../features/community/notification-mutation-gate";
+import {
+  NotificationMutationGate,
+} from "../features/community/notification-mutation-gate";
 import {
   appendUniqueNotifications,
   repeatsNotificationCursor,
@@ -366,7 +368,10 @@ const Notifications = () => {
 
   const markRead = async (id: string) => {
     if (mutationNeedsRefresh) return;
-    const lease = mutationGateRef.current.tryAcquire(authorityScope, `read:${id}`);
+    const lease = mutationGateRef.current.tryAcquire(
+      authorityScope,
+      `read:${id}`,
+    );
     if (!lease) return;
 
     const ticket = beginActionRequest();
@@ -382,7 +387,11 @@ const Notifications = () => {
       setReconcileTick((current) => current + 1);
     } catch (nextError) {
       if (!isActionRequestCurrent(ticket)) return;
-      recordMutationError(nextError, lease.actionKey, "No pudimos marcar la notificación.");
+      recordMutationError(
+        nextError,
+        lease.actionKey,
+        "No pudimos marcar la notificación.",
+      );
     } finally {
       mutationGateRef.current.release(lease);
       if (finishActionRequest(ticket)) setActionBusy(false);
@@ -391,7 +400,10 @@ const Notifications = () => {
 
   const markAll = async () => {
     if (mutationNeedsRefresh) return;
-    const lease = mutationGateRef.current.tryAcquire(authorityScope, "read-all");
+    const lease = mutationGateRef.current.tryAcquire(
+      authorityScope,
+      "read-all",
+    );
     if (!lease) return;
 
     const ticket = beginActionRequest();
@@ -572,7 +584,9 @@ const Notifications = () => {
                       {target ? (
                         <Link
                           to={target}
-                          aria-disabled={actionBusy || mutationNeedsRefresh || undefined}
+                          aria-disabled={
+                            actionBusy || mutationNeedsRefresh || undefined
+                          }
                           onClick={(event) => {
                             if (
                               event.button !== 0 ||
