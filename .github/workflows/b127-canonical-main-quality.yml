@@ -4,6 +4,12 @@ on:
   pull_request:
     paths:
       - .github/workflows/b127-canonical-main-quality.yml
+      - package.json
+      - pnpm-lock.yaml
+      - apps/api/package.json
+      - apps/web/package.json
+      - apps/mobile/package.json
+      - scripts/security/patched-production-dependencies.test.mjs
       - apps/api/src/**
       - apps/api/test/**
       - apps/web/src/**
