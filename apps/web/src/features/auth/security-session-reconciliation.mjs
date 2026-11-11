@@ -28,7 +28,14 @@ export function isValidSessionInventory(snapshot) {
         session === null ||
         typeof session !== "object" ||
         typeof session.id !== "string" ||
-        !session.id,
+        !session.id ||
+        (session.clientType !== "web" && session.clientType !== "mobile") ||
+        typeof session.current !== "boolean" ||
+        !["createdAt", "lastSeenAt", "expiresAt"].every(
+          (key) =>
+            typeof session[key] === "string" &&
+            !Number.isNaN(Date.parse(session[key])),
+        ),
     )
   );
 }
