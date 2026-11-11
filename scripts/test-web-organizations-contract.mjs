@@ -332,10 +332,10 @@ assert.ok(publicPageStyles.includes('.organization-event-filter[aria-pressed="tr
 
 assert.match(service, /verificationState\?:\s*OrganizationVerificationState/u);
 assert.match(service, /query\.set\("verificationState", input\.verificationState\)/u);
-assert.ok(directory.includes('verificationState || "all-verification-states"'));
-assert.ok(directory.includes('verificationState: verificationState || undefined'));
+assert.ok(directory.includes('appliedVerificationState || "all-verification-states"'));
+assert.ok(directory.includes('verificationState: appliedVerificationState || undefined'));
 assert.equal(
-  (directory.match(/verificationState: verificationState \|\| undefined/gu) ?? [])
+  (directory.match(/verificationState: appliedVerificationState \|\| undefined/gu) ?? [])
     .length,
   2,
 );
