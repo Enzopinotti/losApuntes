@@ -19,6 +19,12 @@ import {
   questionListHref,
   questionDetailSearchParams,
 } from '../apps/web/src/features/community/qa-subject-navigation.mjs';
+import {
+  questionDiscoveryFiltersFromParams,
+  questionDiscoverySearchParams,
+  questionDiscoveryClearParams,
+  questionDiscoveryListHref,
+} from '../apps/web/src/features/community/qa-discovery-search.mjs';
 
 const root = process.cwd();
 
@@ -138,6 +144,20 @@ assert.match(questions, /communityApi\.acceptAnswer\([\s\S]{0,180}signal/u);
 assert.match(questions, /communityApi\.reportQuestion\([\s\S]{0,160}signal/u);
 assert.match(questions, /communityApi\.reportAnswer\([\s\S]{0,160}signal/u);
 assert.match(questions, /await loadListRef\.current\(\)/u);
+assert.match(questions, /questionDiscoveryFiltersFromParams\(searchParams\)/u);
+assert.match(questions, /appliedFiltersInvalid \? "invalid-discovery-link"/u);
+assert.match(questions, /q: appliedQuery \|\| undefined/u);
+assert.match(questions, /status: appliedStatus \|\| undefined/u);
+assert.match(questions, /setQuery\(appliedQuery\)/u);
+assert.match(questions, /setStatusFilter\(appliedStatus\)/u);
+assert.match(questions, /questionDiscoverySearchParams\(\s*searchParams,\s*query,\s*statusFilter,?\s*\)/u);
+assert.match(questions, /questionDiscoveryClearParams\(current\)/u);
+assert.match(questions, /questionDiscoveryListHref\(searchParams\)/u);
+assert.match(questions, /new URL\(discoveryLink, window\.location\.origin\)/u);
+assert.match(questions, /role="search"/u);
+assert.match(questions, /Volver a resultados/u);
+assert.match(questions, /Copiar búsqueda/u);
+assert.match(questions, /Limpiar búsqueda/u);
 assert.match(questions, /loadDetailRef\.current\(\)/u);
 assert.match(questions, /questionDetailSearchParams\(params, result\.question\.id\)/u);
 assert.match(questions, /Cargando pregunta…/u);
@@ -453,6 +473,35 @@ assert.equal(
   ).toString(),
   'subjectId=' + canonicalSubjectId + '&q=exam&id=question-1',
 );
+assert.deepEqual(
+  questionDiscoveryFiltersFromParams(new URLSearchParams('q=matrices&status=open')),
+  { q: 'matrices', status: 'open' },
+);
+assert.equal(
+  questionDiscoverySearchParams(
+    new URLSearchParams('subjectId=' + canonicalSubjectId + '&id=old'),
+    '  matrices  ',
+    'closed',
+  ).toString(),
+  'subjectId=' + canonicalSubjectId + '&q=matrices&status=closed',
+);
+assert.equal(
+  questionDiscoveryClearParams(
+    new URLSearchParams('subjectId=' + canonicalSubjectId + '&q=hola&status=open'),
+  ).toString(),
+  'subjectId=' + canonicalSubjectId,
+);
+assert.equal(
+  questionDiscoveryListHref(
+    new URLSearchParams('subjectId=' + canonicalSubjectId + '&q=matrices&status=closed&id=secret'),
+  ),
+  '/questions?subjectId=' + canonicalSubjectId + '&q=matrices&status=closed',
+);
+assert.equal(
+  questionDiscoveryListHref(new URLSearchParams('q=xx&q=xx')),
+  null,
+  'duplicated URL filters must not silently broaden discovery',
+);
 const subjectFilter = await read(
   'apps/web/src/features/community/QuestionSubjectFilter.tsx',
 );
@@ -461,7 +510,7 @@ assert.match(subjectFilter, /viewerScopeKey/u);
 assert.match(subjectFilter, /useAsyncAuthorityFence/u);
 assert.match(questions, /QuestionSubjectFilter/u);
 assert.match(questions, /subjectId: discoverySubjectId \?\? undefined/u);
-assert.match(questions, /if \(discoverySubjectId === undefined\)/u);
+assert.match(questions, /if \(discoverySubjectId === undefined \|\| appliedFiltersInvalid\)/u);
 assert.match(questions, /questionDetailSearchParams\(params, id\)/u);
 assert.match(questions, /questionListHref\(discoverySubjectId\)/u);
 assert.match(questions, /community-filter-shortcut/u);

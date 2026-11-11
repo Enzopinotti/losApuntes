@@ -9,6 +9,12 @@ import { Link, useLocation, useSearchParams } from "react-router-dom";
 import { useAuth } from "../contexts/useAuth";
 import { QuestionSubjectFilter } from "../features/community/QuestionSubjectFilter";
 import {
+  questionDiscoveryClearParams,
+  questionDiscoveryFiltersFromParams,
+  questionDiscoveryListHref,
+  questionDiscoverySearchParams,
+} from "../features/community/qa-discovery-search.mjs";
+import {
   questionDetailSearchParams,
   questionListHref,
   questionSubjectIdFromSearchParams,
@@ -36,6 +42,7 @@ import type { AcademicSubjectOption } from "../features/resources/interfaces";
 import { resourcesApi } from "../features/resources/services/resourcesService";
 import { useAsyncAuthorityFence } from "../shared/useAsyncAuthorityFence";
 import "./Community.scss";
+import "./QaDiscoveryShare.scss";
 
 function CommunityAuthorAttribution({
   author,
@@ -98,13 +105,30 @@ const Questions = () => {
   const [searchParams, setSearchParams] = useSearchParams();
   const initialId = searchParams.get("id");
   const discoverySubjectId = questionSubjectIdFromSearchParams(searchParams);
+  const appliedFilters = questionDiscoveryFiltersFromParams(searchParams);
+  const appliedFiltersInvalid = appliedFilters === null;
+  const appliedQuery = appliedFilters?.q ?? "";
+  const appliedStatus = (appliedFilters?.status ?? "") as QuestionState | "";
+  const discoveryLink = questionDiscoveryListHref(searchParams);
 
-  const [query, setQuery] = useState("");
-  const [statusFilter, setStatusFilter] = useState<QuestionState | "">("");
+  // Draft controls are not network authority: only applied URL filters fetch.
+  const [query, setQuery] = useState(appliedQuery);
+  const [statusFilter, setStatusFilter] = useState<QuestionState | "">(
+    appliedStatus,
+  );
+  const [searchSubmitError, setSearchSubmitError] = useState<string | null>(
+    null,
+  );
+  useEffect(() => {
+    // Browser Back/Forward and shared links restore exactly the applied query.
+    setQuery(appliedQuery);
+    setStatusFilter(appliedStatus);
+    setSearchSubmitError(null);
+  }, [appliedQuery, appliedStatus]);
   const listScopeKey = [
     viewerScopeKey,
-    query.trim(),
-    statusFilter || "all-states",
+    appliedFiltersInvalid ? "invalid-discovery-link" : appliedQuery,
+    appliedStatus || "all-states",
     discoverySubjectId === undefined
       ? "invalid-subject-link"
       : (discoverySubjectId ?? "all-subjects"),
@@ -232,7 +256,12 @@ const Questions = () => {
     scopeKey: string;
     message: string;
   } | null>(null);
-  const shareScopeKey = `${viewerScopeKey}:${discoverySubjectId ?? "invalid-or-all"}`;
+  const shareScopeKey = [
+    viewerScopeKey,
+    discoverySubjectId ?? "invalid-or-all",
+    appliedQuery,
+    appliedStatus || "all-states",
+  ].join(":");
 
   const error =
     currentActionState?.error ??
@@ -251,7 +280,7 @@ const Questions = () => {
     async (cursor?: string, append = false) => {
       const ticket = beginList();
       if (!isListCurrent(ticket)) return;
-      if (discoverySubjectId === undefined) {
+      if (discoverySubjectId === undefined || appliedFiltersInvalid) {
         setListState({
           scopeKey: listScopeKey,
           items: [],
@@ -280,8 +309,8 @@ const Questions = () => {
       try {
         const result = await communityApi.questions(
           {
-            q: query.trim() || undefined,
-            status: statusFilter || undefined,
+            q: appliedQuery || undefined,
+            status: appliedStatus || undefined,
             subjectId: discoverySubjectId ?? undefined,
             cursor,
             limit: 25,
@@ -380,13 +409,14 @@ const Questions = () => {
       }
     },
     [
+      appliedFiltersInvalid,
+      appliedQuery,
+      appliedStatus,
       beginList,
       discoverySubjectId,
       finishList,
       isListCurrent,
       listScopeKey,
-      query,
-      statusFilter,
     ],
   );
   const loadListRef = useRef(loadList);
@@ -776,11 +806,65 @@ const Questions = () => {
     (subjectId: string | null) => {
       const href = questionListHref(subjectId);
       if (!href) return;
-      const queryString = href.split("?")[1] ?? "";
-      setSearchParams(new URLSearchParams(queryString));
+      setSearchParams((current) => {
+        const next = new URLSearchParams(current);
+        next.delete("id");
+        next.delete("subjectId");
+        if (subjectId) next.set("subjectId", subjectId);
+        return next;
+      });
     },
     [setSearchParams],
   );
+
+  const applyDiscoverySearch = () => {
+    const next = questionDiscoverySearchParams(
+      searchParams,
+      query,
+      statusFilter,
+    );
+    if (!next) {
+      setSearchSubmitError(
+        "La búsqueda debe tener entre 2 y 120 caracteres, o estar vacía.",
+      );
+      return;
+    }
+    setSearchSubmitError(null);
+    if (next.toString() === searchParams.toString()) {
+      void loadListRef.current();
+    } else {
+      setSearchParams(next);
+    }
+  };
+
+  const clearDiscoverySearch = () => {
+    setSearchSubmitError(null);
+    setSearchParams((current) => questionDiscoveryClearParams(current));
+  };
+
+  const copySearchLink = async () => {
+    if (!discoveryLink) return;
+    const scopeKey = shareScopeKey;
+    try {
+      if (!navigator.clipboard?.writeText) {
+        throw new Error("Clipboard unavailable");
+      }
+      await navigator.clipboard.writeText(
+        new URL(discoveryLink, window.location.origin).toString(),
+      );
+      setShareFeedback({
+        scopeKey,
+        message:
+          "Enlace de búsqueda copiado con los filtros públicos aplicados.",
+      });
+    } catch {
+      setShareFeedback({
+        scopeKey,
+        message:
+          "No pudimos copiar el enlace. Podés abrirlo y copiarlo desde el navegador.",
+      });
+    }
+  };
 
   const copyDiscoveryLink = async () => {
     const href = questionListHref(discoverySubjectId);
@@ -930,16 +1014,32 @@ const Questions = () => {
           {error}
         </p>
       )}
+      {appliedFilters === null && (
+        <p className="community-error" role="alert">
+          El enlace de búsqueda tiene filtros inválidos o repetidos. Quitá los
+          filtros de búsqueda para continuar; no mostraremos resultados de otra
+          consulta por error.
+        </p>
+      )}
+      {searchSubmitError && (
+        <p className="community-error" role="alert">
+          {searchSubmitError}
+        </p>
+      )}
 
       <form
         className="community-search"
+        role="search"
         onSubmit={(event) => {
           event.preventDefault();
-          void loadList();
+          applyDiscoverySearch();
         }}
       >
         <input
           aria-label="Buscar preguntas"
+          type="search"
+          minLength={2}
+          maxLength={120}
           placeholder="Buscar por título o contenido"
           value={query}
           onChange={(event) => setQuery(event.target.value)}
@@ -958,7 +1058,36 @@ const Questions = () => {
         <button type="submit" disabled={loading}>
           Buscar
         </button>
+        <button
+          type="button"
+          className="secondary"
+          onClick={clearDiscoverySearch}
+          disabled={!searchParams.has("q") && !searchParams.has("status")}
+        >
+          Limpiar búsqueda
+        </button>
       </form>
+      <div className="community-discovery-share">
+        <p role="status">
+          {appliedFilters === null
+            ? "Búsqueda suspendida: el enlace no es válido."
+            : "El texto y el estado se aplican al buscar, no mientras escribís."}
+        </p>
+        {discoveryLink && (
+          <div className="community-actions">
+            <button
+              type="button"
+              className="secondary"
+              onClick={() => void copySearchLink()}
+            >
+              Copiar búsqueda
+            </button>
+            <Link className="community-back-link" to={discoveryLink}>
+              Abrir enlace de búsqueda
+            </Link>
+          </div>
+        )}
+      </div>
 
       {authenticated ? (
         <details className="community-card">
@@ -1108,6 +1237,11 @@ const Questions = () => {
           ) : (
             <>
               <header className="community-question-header">
+                {discoveryLink && (
+                  <Link className="community-back-link" to={discoveryLink}>
+                    Volver a resultados
+                  </Link>
+                )}
                 {feedReturnTo && (
                   <Link
                     className="community-back-link"
