@@ -3,6 +3,7 @@ import test from "node:test";
 import { SecurityActionGate } from "../apps/web/src/features/auth/security-action-gate.ts";
 import {
   isUncertainSessionRevocationError,
+  isValidSessionInventory,
   sessionRevocationReconciliation,
 } from "../apps/web/src/features/auth/security-session-reconciliation.mjs";
 
@@ -72,6 +73,24 @@ test("authoritative untruncated inventory can confirm a missing remote session",
 test("absence in truncated inventory is never treated as revocation proof", () => {
   assert.equal(sessionRevocationReconciliation("other", inventory(["current"], true)), "unknown");
   assert.equal(sessionRevocationReconciliation("other", inventory([], true)), "unknown");
+});
+
+test("only valid bounded session inventories may reach the Web UI", () => {
+  assert.equal(isValidSessionInventory(inventory(["session-current"])), true);
+  assert.equal(isValidSessionInventory(inventory([], true)), true);
+  for (const value of [
+    null,
+    undefined,
+    { sessions: [], truncated: false },
+    { sessions: [], truncated: "false", limit: 20 },
+    { sessions: null, truncated: false, limit: 20 },
+    { sessions: [{ id: null }], truncated: false, limit: 20 },
+    { sessions: [{ id: "" }], truncated: false, limit: 20 },
+    { sessions: [], truncated: false, limit: 0 },
+    { sessions: [], truncated: false, limit: Infinity },
+  ]) {
+    assert.equal(isValidSessionInventory(value), false);
+  }
 });
 
 test("malformed session inventory fails closed", () => {
