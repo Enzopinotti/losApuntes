@@ -6,17 +6,17 @@
   line-height: 1.5;
 }
 
-.community-list .network-person-summary > div {
+.network-search-results .network-person-summary > div {
   overflow-wrap: anywhere;
 }
 
-.community-list .network-person-summary .community-status {
+.network-search-results .network-person-summary .community-status {
   display: inline-flex;
   width: fit-content;
   margin-top: 0.15rem;
 }
 
-.community-list .network-person-summary a[href="#network-incoming-title"] {
+.network-search-results .network-person-summary a[href="#network-incoming-title"] {
   display: inline-flex;
   width: fit-content;
   align-items: center;
@@ -26,7 +26,7 @@
   text-underline-offset: 3px;
 }
 
-.community-list .network-person-summary a[href="#network-incoming-title"]:focus-visible {
+.network-search-results .network-person-summary a[href="#network-incoming-title"]:focus-visible {
   outline: 3px solid #3566b8;
   outline-offset: 3px;
 }

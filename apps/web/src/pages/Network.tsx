@@ -36,6 +36,7 @@ import {
 } from "../features/community/network-presentation";
 import { useAsyncAuthorityFence } from "../shared/useAsyncAuthorityFence";
 import "./Community.scss";
+import "./NetworkSearchContext.scss";
 
 function messageFor(error: unknown): string {
   if (isCommunityApiError(error) || isSearchApiError(error)) {
@@ -622,7 +623,7 @@ const Network = () => {
               las páginas de tu red que ya cargaste. La API confirma todas las
               acciones y puede detectar una relación que todavía no figura acá.
             </p>
-            <ul className="community-list">
+            <ul className="community-list network-search-results">
               {people.map((person) => {
                 const relation = networkSearchRelationship(
                   person.profileId,
