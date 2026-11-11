@@ -47,10 +47,6 @@ jobs:
           cache: pnpm
       - name: Install frozen workspace
         run: pnpm install --frozen-lockfile
-      - name: Temporary Security page Prettier exact diff
-        run: |
-          pnpm --filter @losapuntes/web exec prettier src/pages/Security.tsx > /tmp/security.prettier.tsx
-          diff -u apps/web/src/pages/Security.tsx /tmp/security.prettier.tsx || true
       - name: Check all canonical formatting without modifying source
         run: |
           pnpm --filter @losapuntes/api format:check
