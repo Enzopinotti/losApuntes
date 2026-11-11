@@ -213,9 +213,10 @@ assert.equal(actionGate.release(nextLease), false);
 
 const read = (relativePath) =>
   readFile(path.join(process.cwd(), relativePath), "utf8");
-const [page, styles, root] = await Promise.all([
+const [page, styles, searchContextStyles, root] = await Promise.all([
   read("apps/web/src/pages/Network.tsx"),
   read("apps/web/src/pages/Community.scss"),
+  read("apps/web/src/pages/NetworkSearchContext.scss"),
   read("package.json"),
 ]);
 assert.match(page, /actionGateRef\.current\.tryAcquire/u);
@@ -262,6 +263,10 @@ assert.match(page, /repeatedCursorMessage/u);
 assert.match(page, /appendUniqueNetworkItems/u);
 assert.match(styles, /\.network-requests/u);
 assert.match(styles, /\.network-request-count/u);
+assert.match(searchContextStyles, /\.network-search-results/u);
+assert.match(searchContextStyles, /min-height: 44px/u);
+assert.match(searchContextStyles, /:focus-visible/u);
+assert.doesNotMatch(searchContextStyles, /localStorage|sessionStorage/u);
 assert.match(root, /test:web-network-presentation/u);
 
 console.log("PASS Web Network grouping, labels and presentation contract");
