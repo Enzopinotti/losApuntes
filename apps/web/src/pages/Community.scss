@@ -181,6 +181,48 @@
   background: #f6f7fa;
 }
 
+/* Read mutations with an unknown outcome require a fresh server snapshot. */
+.community-notification-recovery {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.9rem 1rem;
+  margin-bottom: 1rem;
+  border: 1px solid #d1d8e8;
+  border-radius: 12px;
+  background: #f8faff;
+}
+
+.community-notification-recovery p {
+  margin: 0;
+  flex: 1 1 18rem;
+  color: #30415d;
+}
+
+.community-notification-recovery button {
+  min-height: 44px;
+  padding: 0.6rem 0.85rem;
+  border: 1px solid #3566b8;
+  border-radius: 9px;
+  background: #fff;
+  color: #254b87;
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.community-notification-recovery button:focus-visible {
+  outline: 3px solid #3566b8;
+  outline-offset: 3px;
+}
+
+.community-notification-recovery button:disabled {
+  cursor: wait;
+  opacity: 0.7;
+}
+
 .community-question-link {
   display: grid;
   gap: 0.25rem;

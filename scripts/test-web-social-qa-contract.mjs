@@ -4,6 +4,12 @@ import path from 'node:path';
 import { shouldReconcileNotificationTick } from '../apps/web/src/features/community/notificationReconciliation.ts';
 import { notificationTargetPath } from '../apps/web/src/features/community/notification-navigation.mjs';
 import {
+  isNotificationReadConfirmed,
+  isNotificationReadAllConfirmed,
+  isNotificationMutationUncertain,
+} from '../apps/web/src/features/community/notification-read-ack.mjs';
+import { NotificationMutationGate } from '../apps/web/src/features/community/notification-mutation-gate.ts';
+import {
   appendUniqueNotifications,
   repeatsNotificationCursor,
 } from '../apps/web/src/features/community/notification-pagination.mjs';
@@ -252,6 +258,47 @@ assert.deepEqual(
   'Local topic and server-side unread filters compose without changing read state',
 );
 
+// Read receipts are authoritative only when API acknowledges their exact shape.
+assert.equal(isNotificationReadConfirmed({ read: true }), true);
+for (const response of [null, {}, { read: false }, { read: 1 }, { read: 'true' }]) {
+  assert.equal(isNotificationReadConfirmed(response), false);
+}
+for (const updated of [0, 1, 25]) {
+  assert.equal(isNotificationReadAllConfirmed({ updated }), true);
+}
+for (const response of [
+  null, {}, { updated: -1 }, { updated: 1.5 }, { updated: NaN },
+  { updated: '3' }, { updated: Infinity }, { updated: Number.MAX_SAFE_INTEGER + 1 },
+]) {
+  assert.equal(isNotificationReadAllConfirmed(response), false);
+}
+for (const status of [400, 401, 403, 404, 409, 410, 422]) {
+  assert.equal(isNotificationMutationUncertain({ status }), false);
+}
+for (const failure of [
+  null, new Error('timeout'), { status: 0 }, { status: 200 },
+  { status: 408 }, { status: 429 }, { status: 502 },
+]) {
+  assert.equal(
+    isNotificationMutationUncertain(failure),
+    true,
+    'Ambiguous writes require a server refresh before another mutation',
+  );
+}
+
+// A rapid second click must not acquire a lease; an earlier account cannot
+// release a subsequent account's in-flight notification operation.
+const mutationGate = new NotificationMutationGate();
+const originalLease = mutationGate.tryAcquire('account-a:session-a', 'read:n1');
+assert.ok(originalLease);
+assert.equal(mutationGate.tryAcquire('account-a:session-a', 'read-all'), null);
+const secondAccountLease = mutationGate.tryAcquire('account-b:session-b', 'read:n2');
+assert.ok(secondAccountLease);
+assert.equal(mutationGate.release(originalLease), false);
+assert.equal(mutationGate.tryAcquire('account-b:session-b', 'read:n3'), null);
+assert.equal(mutationGate.release(secondAccountLease), true);
+assert.equal(mutationGate.tryAcquire('account-b:session-b', 'read:n4')?.actionKey, 'read:n4');
+
 const notifications = await read('apps/web/src/pages/Notifications.tsx');
 assert.match(notifications, /setCategory\("all"\)/u);
 assert.match(notifications, /selectNotificationCategory\(items, category\)/u);
@@ -339,6 +386,21 @@ assert.equal(
 assert.match(notifications, /communityApi\.notifications/u);
 assert.match(notifications, /communityApi\.markNotificationRead/u);
 assert.match(notifications, /communityApi\.markAllNotificationsRead/u);
+assert.match(notifications, /isNotificationReadConfirmed\(result\)/u);
+assert.match(notifications, /isNotificationReadAllConfirmed\(result\)/u);
+assert.match(notifications, /mutationGateRef\.current\.tryAcquire/u);
+assert.match(notifications, /mutationGateRef\.current\.release\(lease\)/u);
+assert.match(notifications, /isNotificationMutationUncertain\(nextError\)/u);
+assert.match(notifications, /setUncertainMutation\(\{ scopeKey: authorityScope, actionKey \}\)/u);
+assert.match(notifications, /setUncertainMutation\(null\)/u);
+assert.match(notifications, /mutationNeedsRefresh && \(/u);
+assert.match(notifications, /disabled=\{busy \|\| loading \|\| mutationNeedsRefresh\}/u);
+assert.match(notifications, /onClick=\{\(\) => void loadFirstPage\(true\)\}/u);
+assert.match(notifications, /if \(confirmUncertain\) \{/u);
+assert.match(notifications, /current\?\.scopeKey === authorityScope \? null : current/u);
+assert.match(notifications, /Actualizar bandeja/u);
+assert.match(notificationStyles, /\.community-notification-recovery button:focus-visible/u);
+assert.match(notificationStyles, /\.community-notification-recovery button \{[\s\S]*?min-height: 44px/u);
 assert.match(notifications, /notificationTargetPath\(item\.target\)/u);
 const acknowledgeAndOpenStart = notifications.indexOf(
   'const acknowledgeAndOpen = async',
@@ -358,12 +420,12 @@ const acknowledgeAndOpen = notifications.slice(
 );
 assert.match(acknowledgeAndOpen, /markNotificationRead\(/u);
 assert.match(acknowledgeAndOpen, /item\.id,[\s\S]*ticket\.signal/u);
-assert.match(acknowledgeAndOpen, /result\.read !== true/u);
+assert.match(acknowledgeAndOpen, /isNotificationReadConfirmed\(result\)/u);
 assert.match(
   acknowledgeAndOpen,
   /isActionRequestCurrent\(ticket\)[\s\S]*navigate\(target\)/u,
 );
-assert.match(notifications, /aria-disabled=\{actionBusy \|\| undefined\}/u);
+assert.match(notifications, /aria-disabled=\{\s*actionBusy \|\| mutationNeedsRefresh \|\| undefined\s*\}/u);
 assert.match(notifications, /Esta notificación no tiene un destino navegable/u);
 assert.match(notifications, /nextCursor/u);
 assert.match(notifications, /Cargar más/u);
