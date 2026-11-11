@@ -1,0 +1,93 @@
+import assert from "node:assert/strict";
+import test from "node:test";
+import { SecurityActionGate } from "../apps/web/src/features/auth/security-action-gate.ts";
+import {
+  isUncertainSessionRevocationError,
+  sessionRevocationReconciliation,
+} from "../apps/web/src/features/auth/security-session-reconciliation.mjs";
+
+const inventory = (sessions, truncated = false) => ({
+  sessions: sessions.map((id) => ({ id })),
+  truncated,
+  limit: 20,
+});
+
+test("one synchronous security action per authenticated scope", () => {
+  const gate = new SecurityActionGate();
+  assert.equal(gate.tryAcquire("", "session:s1"), null);
+  assert.equal(gate.tryAcquire("scope-a", ""), null);
+  const first = gate.tryAcquire("scope-a", "session:s1");
+  assert.ok(first);
+  assert.equal(gate.tryAcquire("scope-a", "all-sessions"), null);
+  assert.equal(gate.tryAcquire("scope-a", "password"), null);
+  assert.equal(gate.tryAcquire("scope-a", "google-unlink"), null);
+  assert.equal(gate.release({ ...first }), false, "forged copies cannot release");
+  const second = gate.tryAcquire("scope-b", "all-sessions");
+  assert.ok(second, "a new login scope must not inherit an old lock");
+  assert.equal(gate.release(first), false, "old request cannot release new account");
+  assert.equal(gate.tryAcquire("scope-b", "session:s2"), null);
+  assert.equal(gate.release(second), true);
+  assert.equal(gate.release(second), false);
+  const third = gate.tryAcquire("scope-b", "session:s2");
+  assert.ok(third);
+  assert.ok(third.sequence > second.sequence);
+  assert.equal(gate.release(third), true);
+});
+
+test("ambiguous DELETE errors require explicit revalidation, not replay", () => {
+  for (const failure of [
+    { code: "NETWORK_UNAVAILABLE", status: 0 },
+    { code: "INVALID_RESPONSE", status: 204 },
+    { name: "AbortError" },
+    { name: "TimeoutError" },
+    { status: 408 },
+    { status: 429 },
+    { status: 500 },
+    { status: 503 },
+  ]) {
+    assert.equal(isUncertainSessionRevocationError(failure), true, JSON.stringify(failure));
+  }
+  for (const failure of [
+    null,
+    "network",
+    new Error("Invalid credentials"),
+    { status: 400 },
+    { status: 401 },
+    { status: 403 },
+    { status: 404 },
+    { status: 409 },
+    { code: "WRONG_PASSWORD", status: 422 },
+  ]) {
+    assert.equal(isUncertainSessionRevocationError(failure), false, String(failure));
+  }
+});
+
+test("authoritative untruncated inventory can confirm a missing remote session", () => {
+  assert.equal(sessionRevocationReconciliation("other", inventory(["current"])), "revoked");
+  assert.equal(sessionRevocationReconciliation("other", inventory(["current", "other"])), "active");
+  assert.equal(sessionRevocationReconciliation("other", inventory(["other"], true)), "active");
+  assert.equal(sessionRevocationReconciliation("other", inventory([], false)), "revoked");
+});
+
+test("absence in truncated inventory is never treated as revocation proof", () => {
+  assert.equal(sessionRevocationReconciliation("other", inventory(["current"], true)), "unknown");
+  assert.equal(sessionRevocationReconciliation("other", inventory([], true)), "unknown");
+});
+
+test("malformed session inventory fails closed", () => {
+  for (const value of [
+    null,
+    undefined,
+    {},
+    { sessions: [], truncated: false },
+    { sessions: [], truncated: "false", limit: 20 },
+    { sessions: "hidden", truncated: false, limit: 20 },
+    { sessions: [{ id: null }], truncated: false, limit: 20 },
+    { sessions: [{ id: "" }], truncated: false, limit: 20 },
+    { sessions: [], truncated: false, limit: 0 },
+    { sessions: [], truncated: false, limit: NaN },
+  ]) {
+    assert.equal(sessionRevocationReconciliation("other", value), "unknown");
+  }
+  assert.equal(sessionRevocationReconciliation("", inventory([])), "unknown");
+});
