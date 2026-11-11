@@ -311,4 +311,20 @@ assert.match(b290MobileDir, /accessibilityState=\{\{ busy, disabled: followActio
 assert.match(b290MobileDir, /filterInstitutionQuery/u);
 assert.match(b290MobileDir, /<PublicAvatar/u);
 
+const b294Service = await read('apps/web/src/features/organizations/services/organizationsService.ts');
+const b294PublicPage = await read('apps/web/src/pages/Organization.tsx');
+const b294ReportAction = await read('apps/web/src/features/organizations/OrganizationContentReportAction.tsx');
+const b294ReportCtrl = await read('apps/web/src/features/organizations/organization-report-controller.ts');
+const b294ReportPolicy = await read('apps/web/src/features/organizations/organization-report-policy.ts');
+assert.match(b294Service, /reportPost:[\s\S]*?body: json\(input\)/u);
+assert.match(b294Service, /reportEvent:[\s\S]*?body: json\(input\)/u);
+assert.doesNotMatch(b294Service, /Reporte enviado desde la interfaz web/u);
+assert.match(b294PublicPage, /<OrganizationContentReportAction[\s\S]*?targetType="post"/u);
+assert.match(b294PublicPage, /<OrganizationContentReportAction[\s\S]*?targetType="event"/u);
+assert.match(b294ReportAction, /ORGANIZATION_REPORT_REASONS\.map/u);
+assert.match(b294ReportAction, /validateOrganizationReport\(/u);
+assert.match(b294ReportCtrl, /outcome: "none" \| "confirmed" \| "uncertain"/u);
+assert.match(b294ReportCtrl, /current\.outcome !== "none"/u);
+assert.match(b294ReportPolicy, /ORGANIZATION_REPORT_DETAILS_MAX_LENGTH = 1500/u);
+
 console.log('PASS Web Organizations authority/source contract');
