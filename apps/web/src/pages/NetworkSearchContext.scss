@@ -1,0 +1,32 @@
+/* Search-result hints are presentation-only; remote relationship authority
+   remains with the social API and its paginated server responses. */
+.network-search-context-note {
+  margin: 0.45rem 0 1rem;
+  color: #556179;
+  line-height: 1.5;
+}
+
+.network-search-results .network-person-summary > div {
+  overflow-wrap: anywhere;
+}
+
+.network-search-results .network-person-summary .community-status {
+  display: inline-flex;
+  width: fit-content;
+  margin-top: 0.15rem;
+}
+
+.network-search-results .network-person-summary a[href="#network-incoming-title"] {
+  display: inline-flex;
+  width: fit-content;
+  align-items: center;
+  min-height: 44px;
+  color: #315c9b;
+  text-decoration-thickness: 1px;
+  text-underline-offset: 3px;
+}
+
+.network-search-results .network-person-summary a[href="#network-incoming-title"]:focus-visible {
+  outline: 3px solid #3566b8;
+  outline-offset: 3px;
+}
