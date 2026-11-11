@@ -489,6 +489,8 @@ assert.match(saveStyles, /\.search-profile-actions button:focus-visible/u);
 assert.match(saveStyles, /\.search-profile-actions \[role="status"\]/u);
 assert.match(saveStyles, /\.search-subject-actions \[role="status"\]/u);
 assert.match(saveStyles, /\.search-save-action p\[role="alert"\]/u);
+assert.match(saveStyles, /\.search-save-action a \{/u);
+assert.match(saveStyles, /\.search-save-action a \{[\s\S]*?min-height: 44px/u);
 const resourcesService = await read(
   'apps/web/src/features/resources/services/resourcesService.ts',
 );
