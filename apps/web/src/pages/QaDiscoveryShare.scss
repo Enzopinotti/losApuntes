@@ -1,0 +1,48 @@
+.community-discovery-share {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  margin: 0.15rem 0 1rem;
+}
+
+.community-discovery-share p {
+  margin: 0;
+  flex: 1 1 18rem;
+  line-height: 1.45;
+  color: #556179;
+}
+
+.community-discovery-share .community-actions {
+  justify-content: flex-start;
+}
+
+.community-discovery-share button,
+.community-discovery-share .community-back-link {
+  box-sizing: border-box;
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  padding: 0.6rem 0.85rem;
+  margin: 0;
+  border: 1px solid #cbd1dc;
+  border-radius: 9px;
+  font: inherit;
+}
+
+.community-discovery-share button:focus-visible,
+.community-discovery-share .community-back-link:focus-visible {
+  outline: 3px solid #3566b8;
+  outline-offset: 3px;
+}
+
+@media (max-width: 820px) {
+  .community-discovery-share {
+    align-items: stretch;
+  }
+
+  .community-discovery-share .community-actions {
+    flex-wrap: wrap;
+  }
+}
