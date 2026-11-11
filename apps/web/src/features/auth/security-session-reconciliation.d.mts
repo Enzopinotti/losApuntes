@@ -6,6 +6,9 @@ export type SessionInventoryForReconciliation = Readonly<{
 }>;
 
 export function isUncertainSessionRevocationError(error: unknown): boolean;
+export function isValidSessionInventory(
+  snapshot: unknown,
+): snapshot is SessionInventoryForReconciliation;
 export function sessionRevocationReconciliation(
   targetId: string,
   snapshot: SessionInventoryForReconciliation,
