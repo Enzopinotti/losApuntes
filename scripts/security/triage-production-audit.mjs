@@ -19,23 +19,44 @@ function advisoryEntries(document) {
   // Accept the newer npm shape; absence of both formats is invalid, never clean.
   if (object(document.vulnerabilities)) {
     return Object.entries(document.vulnerabilities).map(([name, detail]) => {
-      const via = Array.isArray(detail?.via)
-        ? detail.via.find((entry) => object(entry) && typeof entry.url === 'string')
-        : null;
-      return [name, { module_name: name, severity: detail?.severity, url: via?.url }];
+      // Preserve every direct advisory: a package-level npm vulnerability can
+      // aggregate multiple different GHSAs under one HIGH counter.
+      return [
+        name,
+        { module_name: name, severity: detail?.severity, via: detail?.via },
+      ];
     });
   }
   return null;
 }
 
-function identifyAdvisory(key, value) {
+function identifyAdvisories(key, value) {
   const tokens = [key, value.id, value.url, ...(Array.isArray(value.cves) ? value.cves : [])];
+  if (Array.isArray(value.via)) {
+    for (const entry of value.via) {
+      if (object(entry)) tokens.push(entry.id, entry.url);
+    }
+  }
+  const ids = new Set();
   for (const token of tokens) {
     if (typeof token !== 'string' && typeof token !== 'number') continue;
     const match = String(token).match(ADVISORY_ID);
-    if (match) return match[0];
+    if (match) ids.add(match[0]);
   }
-  return null;
+  return ids;
+}
+
+function hasUnidentifiedVia(value) {
+  if (!Object.hasOwn(value, 'via')) return false;
+  // String dependency references, malformed objects and absent via cannot
+  // be assumed to correspond to an already reviewed advisory.
+  if (!Array.isArray(value.via)) return true;
+  return value.via.some((entry) =>
+    !object(entry) ||
+    ![entry.id, entry.url].some(
+      (token) => typeof token === 'string' && ADVISORY_ID.test(token),
+    ),
+  );
 }
 
 /**
@@ -73,11 +94,18 @@ export function classifyProductionAudit(document) {
     if (value.severity !== 'high' && value.severity !== 'critical') continue;
     if (value.severity === 'high') observedHigh++;
     else observedCritical++;
-    const advisoryId = identifyAdvisory(key, value);
-    const known = advisoryId && KNOWN_ADVISORIES[advisoryId];
-    if (known && value.module_name === known.packageName && value.severity === 'high') {
-      issues.add(known.issue);
-    } else {
+    const ids = identifyAdvisories(key, value);
+    let knownCount = 0;
+    for (const id of ids) {
+      const known = KNOWN_ADVISORIES[id];
+      if (known && value.module_name === known.packageName && value.severity === 'high') {
+        issues.add(known.issue);
+        knownCount++;
+      }
+    }
+    // Count affected HIGH packages (npm schema) or advisory entries (pnpm
+    // schema), while rejecting any unreviewed finding inside their via chain.
+    if (ids.size === 0 || knownCount !== ids.size || hasUnidentifiedVia(value)) {
       newHigh++;
     }
   }
