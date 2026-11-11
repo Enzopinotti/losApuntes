@@ -19,10 +19,7 @@ import type {
 } from "../features/auth/interfaces";
 import { newPasswordValidationMessage } from "../features/auth/passwordPolicy";
 import PasswordField from "../features/auth/PasswordField";
-import {
-  authApi,
-  isAuthApiError,
-} from "../features/auth/services/authService";
+import { authApi, isAuthApiError } from "../features/auth/services/authService";
 import { SecurityActionGate } from "../features/auth/security-action-gate";
 import {
   isUncertainSessionRevocationError,
@@ -111,12 +108,10 @@ const Security = () => {
   // Prevent repeat clicks before React can render the busy state.
   const actionGateRef = useRef(new SecurityActionGate());
   // A ref additionally fences an uncertain outcome before the next render.
-  const uncertainRevocationRef = useRef<
-    Scoped<UncertainSessionRevocation> | null
-  >(null);
-  const [uncertainRevocationState, setUncertainRevocationState] = useState<
-    Scoped<UncertainSessionRevocation> | null
-  >(null);
+  const uncertainRevocationRef =
+    useRef<Scoped<UncertainSessionRevocation> | null>(null);
+  const [uncertainRevocationState, setUncertainRevocationState] =
+    useState<Scoped<UncertainSessionRevocation> | null>(null);
   const uncertainSessionRevocation =
     uncertainRevocationState?.scopeKey === authScopeKey
       ? uncertainRevocationState.value
@@ -412,10 +407,7 @@ const Security = () => {
       }));
     } catch (nextError) {
       if (!isActionCurrent(ticket)) return;
-      if (
-        isAuthApiError(nextError) &&
-        nextError.status === 401
-      ) {
+      if (isAuthApiError(nextError) && nextError.status === 401) {
         uncertainRevocationRef.current = null;
         setUncertainRevocationState(null);
         publishAuthAuthorityChanged();
@@ -635,7 +627,9 @@ const Security = () => {
                   required
                   maxLength={256}
                   value={currentPassword}
-                  disabled={busyAction !== null || uncertainSessionRevocation !== null}
+                  disabled={
+                    busyAction !== null || uncertainSessionRevocation !== null
+                  }
                   onChange={(event) =>
                     updateDrafts((current) => ({
                       ...current,
@@ -651,7 +645,9 @@ const Security = () => {
                   autoComplete="new-password"
                   required
                   value={newPassword}
-                  disabled={busyAction !== null || uncertainSessionRevocation !== null}
+                  disabled={
+                    busyAction !== null || uncertainSessionRevocation !== null
+                  }
                   onChange={(event) =>
                     updateDrafts((current) => ({
                       ...current,
@@ -669,7 +665,9 @@ const Security = () => {
                   autoComplete="new-password"
                   required
                   value={confirmPassword}
-                  disabled={busyAction !== null || uncertainSessionRevocation !== null}
+                  disabled={
+                    busyAction !== null || uncertainSessionRevocation !== null
+                  }
                   onChange={(event) =>
                     updateDrafts((current) => ({
                       ...current,
@@ -682,7 +680,12 @@ const Security = () => {
                   Al cambiarla se cierran todas las sesiones, incluida esta.
                 </p>
 
-                <button type="submit" disabled={busyAction !== null || uncertainSessionRevocation !== null}>
+                <button
+                  type="submit"
+                  disabled={
+                    busyAction !== null || uncertainSessionRevocation !== null
+                  }
+                >
                   {busyAction === "password"
                     ? "Cambiando…"
                     : "Cambiar contraseña"}
@@ -734,7 +737,10 @@ const Security = () => {
                     </div>
                     <button
                       type="button"
-                      disabled={busyAction !== null || uncertainSessionRevocation !== null}
+                      disabled={
+                        busyAction !== null ||
+                        uncertainSessionRevocation !== null
+                      }
                       onClick={() => void revokeSession(item)}
                     >
                       {item.current ? "Cerrar esta sesión" : "Cerrar sesión"}
@@ -747,7 +753,9 @@ const Security = () => {
             <button
               ref={revokeAllButtonRef}
               type="button"
-              disabled={busyAction !== null || uncertainSessionRevocation !== null}
+              disabled={
+                busyAction !== null || uncertainSessionRevocation !== null
+              }
               onClick={() => setRevokeAllConfirmOpen(true)}
             >
               Cerrar todas las sesiones
