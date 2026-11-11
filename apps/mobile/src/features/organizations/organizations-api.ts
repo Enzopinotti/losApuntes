@@ -212,6 +212,49 @@ export class MobileOrganizationsHttpTransport implements MobileOrganizationsTran
       },
     );
   }
+  reportPost(
+    credential: string,
+    id: string,
+    postId: string,
+    input: OrganizationReportInput,
+    signal?: AbortSignal,
+  ) {
+    return this.client.request<OrganizationReportResponse>(
+      "/organizations/" +
+        encodeURIComponent(id) +
+        "/posts/" +
+        encodeURIComponent(postId) +
+        "/reports",
+      {
+        method: "POST",
+        body: input,
+        credential,
+        ...(signal ? { signal } : {}),
+      },
+    );
+  }
+
+  reportEvent(
+    credential: string,
+    id: string,
+    eventId: string,
+    input: OrganizationReportInput,
+    signal?: AbortSignal,
+  ) {
+    return this.client.request<OrganizationReportResponse>(
+      "/organizations/" +
+        encodeURIComponent(id) +
+        "/events/" +
+        encodeURIComponent(eventId) +
+        "/reports",
+      {
+        method: "POST",
+        body: input,
+        credential,
+        ...(signal ? { signal } : {}),
+      },
+    );
+  }
 }
 
 export class MobileOrganizationsApi implements MobileOrganizationsApiContract {
@@ -253,6 +296,28 @@ export class MobileOrganizationsApi implements MobileOrganizationsApiContract {
   events(id: string, cursor?: string, signal?: AbortSignal, from?: string) {
     return this.authorized((credential) =>
       this.transport.events(credential, id, cursor, signal, from),
+    );
+  }
+
+  reportPost(
+    id: string,
+    postId: string,
+    input: OrganizationReportInput,
+    signal?: AbortSignal,
+  ) {
+    return this.authorized((credential) =>
+      this.transport.reportPost(credential, id, postId, input, signal),
+    );
+  }
+
+  reportEvent(
+    id: string,
+    eventId: string,
+    input: OrganizationReportInput,
+    signal?: AbortSignal,
+  ) {
+    return this.authorized((credential) =>
+      this.transport.reportEvent(credential, id, eventId, input, signal),
     );
   }
 
