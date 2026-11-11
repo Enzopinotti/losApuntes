@@ -22,6 +22,10 @@ import {
 } from "../features/community/services/communityService";
 import { NetworkActionGate } from "../features/community/network-action-gate";
 import {
+  networkSearchRelationship,
+  type NetworkSearchRelationship,
+} from "../features/community/network-search-context";
+import {
   appendUniqueNetworkItems,
   repeatsNetworkCursor,
 } from "../features/community/network-pagination.mjs";
@@ -53,6 +57,16 @@ function createCursorHistory(scopeKey: string) {
     connections: new Set<string>(),
   };
 }
+
+const connectionSearchLabels: Record<
+  Exclude<NetworkSearchRelationship["connection"], null>,
+  string
+> = {
+  incoming: "Solicitud recibida",
+  outgoing: "Solicitud enviada",
+  accepted: "Ya están conectados",
+  reconnect: "Relación anterior finalizada",
+};
 
 const repeatedCursorMessage =
   "La red devolvió una página repetida. Detuvimos esa lista para evitar repetir resultados.";
@@ -602,57 +616,97 @@ const Network = () => {
         </form>
 
         {people.length > 0 && (
-          <ul className="community-list">
-            {people.map((person) => (
-              <li key={person.profileId}>
-                <div className="network-person-summary">
-                  <PublicProfileAvatar
-                    avatarUrl={person.avatarUrl}
-                    displayName={person.displayName}
-                    size="small"
-                  />
-                  <div>
-                    <strong>{person.displayName}</strong>
-                    <Link to={`/p/${person.profileId}`}>Ver perfil</Link>
-                  </div>
-                </div>
-                <div className="community-actions">
-                  <button
-                    type="button"
-                    disabled={Boolean(busy)}
-                    onClick={() =>
-                      void run(
-                        `follow:${person.profileId}`,
-                        (signal) =>
-                          communityApi.follow(person.profileId, signal),
-                        "Ahora seguís ese perfil.",
-                      )
-                    }
-                  >
-                    Seguir
-                  </button>
-                  <button
-                    type="button"
-                    className="secondary"
-                    disabled={Boolean(busy)}
-                    onClick={() =>
-                      void run(
-                        `connect:${person.profileId}`,
-                        (signal) =>
-                          communityApi.requestConnection(
-                            person.profileId,
-                            signal,
-                          ),
-                        "Solicitud de conexión enviada.",
-                      )
-                    }
-                  >
-                    Conectar
-                  </button>
-                </div>
-              </li>
-            ))}
-          </ul>
+          <>
+            <p className="network-search-context-note">
+              Los estados se muestran únicamente cuando la relación aparece en
+              las páginas de tu red que ya cargaste. La API confirma todas las
+              acciones y puede detectar una relación que todavía no figura acá.
+            </p>
+            <ul className="community-list">
+              {people.map((person) => {
+                const relation = networkSearchRelationship(
+                  person.profileId,
+                  following,
+                  connections,
+                );
+                return (
+                  <li key={person.profileId}>
+                    <div className="network-person-summary">
+                      <PublicProfileAvatar
+                        avatarUrl={person.avatarUrl}
+                        displayName={person.displayName}
+                        size="small"
+                      />
+                      <div>
+                        <strong>{person.displayName}</strong>
+                        <Link to={`/p/${encodeURIComponent(person.profileId)}`}>
+                          Ver perfil
+                        </Link>
+                        {relation.isFollowingKnown && (
+                          <span className="community-status">
+                            Ya lo seguís
+                          </span>
+                        )}
+                        {relation.connection && (
+                          <span className="community-status">
+                            {connectionSearchLabels[relation.connection]}
+                          </span>
+                        )}
+                        {relation.connection === "incoming" && (
+                          <a href="#network-incoming-title">
+                            Responder en solicitudes
+                          </a>
+                        )}
+                      </div>
+                    </div>
+                    {(!relation.isFollowingKnown ||
+                      relation.canRequestConnection) && (
+                      <div className="community-actions">
+                        {!relation.isFollowingKnown && (
+                          <button
+                            type="button"
+                            disabled={Boolean(busy)}
+                            onClick={() =>
+                              void run(
+                                `follow:${person.profileId}`,
+                                (signal) =>
+                                  communityApi.follow(person.profileId, signal),
+                                "Ahora seguís ese perfil.",
+                              )
+                            }
+                          >
+                            Seguir
+                          </button>
+                        )}
+                        {relation.canRequestConnection && (
+                          <button
+                            type="button"
+                            className="secondary"
+                            disabled={Boolean(busy)}
+                            onClick={() =>
+                              void run(
+                                `connect:${person.profileId}`,
+                                (signal) =>
+                                  communityApi.requestConnection(
+                                    person.profileId,
+                                    signal,
+                                  ),
+                                "Solicitud de conexión enviada.",
+                              )
+                            }
+                          >
+                            {relation.connection === "reconnect"
+                              ? "Volver a conectar"
+                              : "Conectar"}
+                          </button>
+                        )}
+                      </div>
+                    )}
+                  </li>
+                );
+              })}
+            </ul>
+          </>
         )}
         {currentSearchState &&
           !currentSearchState.busy &&
