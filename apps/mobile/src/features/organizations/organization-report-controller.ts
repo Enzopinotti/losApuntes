@@ -1,3 +1,4 @@
+import { ApiRequestError } from "@/services/api/client";
 import type { MobileOrganizationsApiContract } from "./organizations-api";
 import {
   mobileOrganizationsFailure,
@@ -46,6 +47,30 @@ function ambiguous(failure: MobileOrganizationsFailure): boolean {
     failure.kind === "timeout" ||
     failure.kind === "server_unavailable"
   );
+}
+
+function confirmedReportReason(value: unknown): OrganizationReportReason | null {
+  if (typeof value !== "object" || value === null) return null;
+  const report = (value as { report?: unknown }).report;
+  if (typeof report !== "object" || report === null) return null;
+  const result = report as {
+    id?: unknown;
+    status?: unknown;
+    reason?: unknown;
+  };
+  if (
+    typeof result.id !== "string" ||
+    result.id.length === 0 ||
+    result.status !== "pending" ||
+    typeof result.reason !== "string"
+  ) {
+    return null;
+  }
+  const validated = validateOrganizationReport(
+    result.reason as OrganizationReportReason,
+    "",
+  );
+  return validated.kind === "valid" ? validated.input.reason : null;
 }
 
 export class MobileOrganizationReportController {
@@ -146,6 +171,15 @@ export class MobileOrganizationReportController {
               operation.controller.signal,
             );
       if (!this.isCurrent(operation)) return false;
+      const confirmedReason = confirmedReportReason(response);
+      if (!confirmedReason) {
+        throw new ApiRequestError(
+          "server_unavailable",
+          503,
+          "INVALID_REPORT_ACK",
+          "Report submission result could not be confirmed",
+        );
+      }
       const latest = this.current(
         authorityKey,
         organizationId,
@@ -156,7 +190,7 @@ export class MobileOrganizationReportController {
       this.publish({
         ...latest,
         outcome: "confirmed",
-        reason: response.report.reason,
+        reason: confirmedReason,
         failure: null,
       });
       return true;
