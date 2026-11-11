@@ -132,6 +132,8 @@
   "pnpm": {
     "overrides": {
       "@nestjs/platform-fastify>fastify": "5.12.5",
+      "decode-uri-component": "0.5.1",
+      "follow-redirects": "1.16.2",
       "react-devtools-core>shell-quote": "1.11.0",
       "postcss>source-map-js": "1.2.2",
       "sass>source-map-js": "1.2.2"
