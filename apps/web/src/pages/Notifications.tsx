@@ -466,6 +466,22 @@ const Notifications = () => {
           {error}
         </p>
       )}
+      {mutationNeedsRefresh && (
+        <div className="community-notification-recovery">
+          <p>
+            Las acciones de lectura están pausadas hasta comprobar el estado
+            actual con el servidor. La notificación puede haberse marcado como
+            leída aunque se haya perdido la respuesta.
+          </p>
+          <button
+            type="button"
+            disabled={busy || loading}
+            onClick={() => void loadFirstPage()}
+          >
+            {loading ? "Actualizando…" : "Actualizar bandeja"}
+          </button>
+        </div>
+      )}
 
       <div className="community-toolbar">
         <label>
@@ -476,7 +492,11 @@ const Notifications = () => {
           />
           Solo no leídas
         </label>
-        <button type="button" disabled={busy} onClick={() => void markAll()}>
+        <button
+          type="button"
+          disabled={busy || loading || mutationNeedsRefresh}
+          onClick={() => void markAll()}
+        >
           Marcar todas como leídas
         </button>
       </div>
@@ -541,7 +561,7 @@ const Notifications = () => {
                       {target ? (
                         <Link
                           to={target}
-                          aria-disabled={actionBusy || undefined}
+                          aria-disabled={actionBusy || mutationNeedsRefresh || undefined}
                           onClick={(event) => {
                             if (
                               event.button !== 0 ||
@@ -553,7 +573,7 @@ const Notifications = () => {
                             ) {
                               return;
                             }
-                            if (actionBusy) {
+                            if (actionBusy || mutationNeedsRefresh) {
                               event.preventDefault();
                               return;
                             }
@@ -577,7 +597,7 @@ const Notifications = () => {
                       <button
                         type="button"
                         className="secondary"
-                        disabled={busy}
+                        disabled={busy || loading || mutationNeedsRefresh}
                         onClick={() => void markRead(item.id)}
                       >
                         Marcar leída
