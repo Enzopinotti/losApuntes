@@ -235,3 +235,48 @@ test("a late report response cannot repaint a new content target", async () => {
   assert.equal(readySnapshot(controller).targetId, "post-b");
   assert.equal(readySnapshot(controller).outcome, "none");
 });
+
+test("a malformed report acknowledgement cannot claim success or retry blindly", async () => {
+  let calls = 0;
+  const controller = new MobileOrganizationReportController(
+    apiStub({
+      reportPost: async () => {
+        calls += 1;
+        return {
+          report: { id: "", reason: "spam" as const, status: "pending" as const },
+        };
+      },
+    }),
+  );
+  const scope = target("post", "post-a");
+  controller.setTarget(
+    scope.authorityKey,
+    scope.organizationId,
+    scope.targetType,
+    scope.targetId,
+  );
+
+  assert.equal(
+    await controller.submit(
+      scope.authorityKey,
+      scope.organizationId,
+      scope.targetType,
+      scope.targetId,
+      input,
+    ),
+    false,
+  );
+  assert.equal(readySnapshot(controller).outcome, "uncertain");
+  assert.equal(readySnapshot(controller).failure?.code, "INVALID_REPORT_ACK");
+  assert.equal(
+    await controller.submit(
+      scope.authorityKey,
+      scope.organizationId,
+      scope.targetType,
+      scope.targetId,
+      input,
+    ),
+    false,
+  );
+  assert.equal(calls, 1);
+});
