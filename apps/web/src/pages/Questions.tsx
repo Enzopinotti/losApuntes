@@ -105,6 +105,7 @@ const Questions = () => {
   const initialId = searchParams.get("id");
   const discoverySubjectId = questionSubjectIdFromSearchParams(searchParams);
   const appliedFilters = questionDiscoveryFiltersFromParams(searchParams);
+  const appliedFiltersInvalid = appliedFilters === null;
   const appliedQuery = appliedFilters?.q ?? "";
   const appliedStatus = (appliedFilters?.status ?? "") as QuestionState | "";
   const discoveryLink = questionDiscoveryListHref(searchParams);
@@ -125,7 +126,7 @@ const Questions = () => {
   }, [appliedQuery, appliedStatus]);
   const listScopeKey = [
     viewerScopeKey,
-    appliedFilters === null ? "invalid-discovery-link" : appliedQuery,
+    appliedFiltersInvalid ? "invalid-discovery-link" : appliedQuery,
     appliedStatus || "all-states",
     discoverySubjectId === undefined
       ? "invalid-subject-link"
@@ -278,7 +279,7 @@ const Questions = () => {
     async (cursor?: string, append = false) => {
       const ticket = beginList();
       if (!isListCurrent(ticket)) return;
-      if (discoverySubjectId === undefined || appliedFilters === null) {
+      if (discoverySubjectId === undefined || appliedFiltersInvalid) {
         setListState({
           scopeKey: listScopeKey,
           items: [],
@@ -407,7 +408,7 @@ const Questions = () => {
       }
     },
     [
-      appliedFilters,
+      appliedFiltersInvalid,
       appliedQuery,
       appliedStatus,
       beginList,
