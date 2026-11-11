@@ -123,7 +123,7 @@ const Notifications = () => {
     window.scrollTo(0, 0);
   }, [authorityScope, status]);
 
-  const loadFirstPage = useCallback(async () => {
+  const loadFirstPage = useCallback(async (confirmUncertain = false) => {
     const ticket = beginListRequest();
     firstPagePendingRef.current = true;
     setLoading(true);
@@ -144,8 +144,13 @@ const Notifications = () => {
       setItems(result.items);
       setNextCursor(result.nextCursor);
       setLoadedPages(1);
-      // A successful authoritative read reconciles an ambiguous write.
-      setUncertainMutation(null);
+      // Only a refresh explicitly requested after uncertainty can unlock
+      // writes. An earlier in-flight load must never clear a newer warning.
+      if (confirmUncertain) {
+        setUncertainMutation((current) =>
+          current?.scopeKey === authorityScope ? null : current,
+        );
+      }
       setError(null);
     } catch (nextError) {
       if (!isListRequestCurrent(ticket)) return;
@@ -156,7 +161,13 @@ const Notifications = () => {
         setLoading(false);
       }
     }
-  }, [beginListRequest, finishListRequest, isListRequestCurrent, unreadOnly]);
+  }, [
+    authorityScope,
+    beginListRequest,
+    finishListRequest,
+    isListRequestCurrent,
+    unreadOnly,
+  ]);
 
   const loadMore = useCallback(
     async (cursor: string) => {
@@ -476,7 +487,7 @@ const Notifications = () => {
           <button
             type="button"
             disabled={busy || loading}
-            onClick={() => void loadFirstPage()}
+            onClick={() => void loadFirstPage(true)}
           >
             {loading ? "Actualizando…" : "Actualizar bandeja"}
           </button>

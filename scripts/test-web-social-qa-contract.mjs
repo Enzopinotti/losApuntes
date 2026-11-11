@@ -395,7 +395,9 @@ assert.match(notifications, /setUncertainMutation\(\{ scopeKey: authorityScope, 
 assert.match(notifications, /setUncertainMutation\(null\)/u);
 assert.match(notifications, /mutationNeedsRefresh && \(/u);
 assert.match(notifications, /disabled=\{busy \|\| loading \|\| mutationNeedsRefresh\}/u);
-assert.match(notifications, /onClick=\{\(\) => void loadFirstPage\(\)\}/u);
+assert.match(notifications, /onClick=\{\(\) => void loadFirstPage\(true\)\}/u);
+assert.match(notifications, /if \(confirmUncertain\) \{/u);
+assert.match(notifications, /current\?\.scopeKey === authorityScope \? null : current/u);
 assert.match(notifications, /Actualizar bandeja/u);
 assert.match(notificationStyles, /\.community-notification-recovery button:focus-visible/u);
 assert.match(notificationStyles, /\.community-notification-recovery button \{[\s\S]*?min-height: 44px/u);
