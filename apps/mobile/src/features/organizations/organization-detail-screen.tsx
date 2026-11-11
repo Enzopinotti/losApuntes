@@ -238,6 +238,19 @@ export function MobileOrganizationDetailScreen({
 
   const organization: OrganizationDetail | null =
     current?.kind === "ready" ? current.organization : null;
+  const eventView = current?.kind === "ready" ? current.eventView : "all";
+  const visibleEvents =
+    current?.kind === "ready"
+      ? current.eventView === "upcoming"
+        ? current.upcomingEvents
+        : current.organization.events
+      : [];
+  const visibleEventsNextCursor =
+    current?.kind === "ready"
+      ? current.eventView === "upcoming"
+        ? current.upcomingEventsNextCursor
+        : current.organization.eventsNextCursor
+      : null;
 
   const shareEvent = async (event: OrganizationEvent) => {
     const message = mobileOrganizationEventShareMessage(event);
@@ -530,10 +543,14 @@ export function MobileOrganizationDetailScreen({
             <Text accessibilityRole="header" style={styles.sectionTitle}>
               Eventos
             </Text>
-            {current.organization.events.length === 0 ? (
-              <Text style={styles.copy}>No hay eventos publicados.</Text>
+            {visibleEvents.length === 0 ? (
+              <Text style={styles.copy}>
+                {eventView === "upcoming"
+                  ? "No hay próximos eventos."
+                  : "No hay eventos publicados."}
+              </Text>
             ) : (
-              current.organization.events.map((event) => (
+              visibleEvents.map((event) => (
                 <EventCard
                   event={event}
                   key={event.id}
@@ -548,7 +565,7 @@ export function MobileOrganizationDetailScreen({
                 />
               ))
             )}
-            {current.organization.eventsNextCursor ? (
+            {visibleEventsNextCursor ? (
               <Pressable
                 accessibilityRole="button"
                 accessibilityState={{ disabled: current.busy !== null }}
