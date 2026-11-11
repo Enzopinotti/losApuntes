@@ -14,6 +14,9 @@ export function saveFailureMessage(error) {
   if ([401, 403, 404, 410].includes(status)) {
     return "Ya no podés guardar este apunte con tu sesión o permisos actuales. Actualizá la búsqueda.";
   }
+  if (typeof status === "number" && !saveOutcomeIsUncertain(error)) {
+    return "No pudimos guardar este apunte. Revisá los datos y volvé a intentar.";
+  }
   return "No pudimos confirmar si quedó guardado. Revisá Guardados antes de volver a intentar.";
 }
 
