@@ -70,8 +70,8 @@ const Organizations = () => {
   const invalidDirectoryFilters = appliedFilters === null;
   const appliedQuery = appliedFilters?.q ?? "";
   const appliedType = (appliedFilters?.type ?? "") as OrganizationType | "";
-  const appliedVerificationState = (appliedFilters?.verificationState ??
-    "") as OrganizationVerificationState | "";
+  const appliedVerificationState = (appliedFilters?.verificationState ?? "") as
+    OrganizationVerificationState | "";
   const appliedInstitutionId = appliedFilters?.institutionId ?? "";
   const directoryLink = organizationDirectoryListHref(searchParams);
   const authScopeKey = [
@@ -85,7 +85,9 @@ const Organizations = () => {
   const [verificationState, setVerificationState] = useState<
     OrganizationVerificationState | ""
   >(appliedVerificationState);
-  const [searchSubmitError, setSearchSubmitError] = useState<string | null>(null);
+  const [searchSubmitError, setSearchSubmitError] = useState<string | null>(
+    null,
+  );
   useEffect(() => {
     // Restore applied filters on Back/Forward and new shared links.
     setQuery(appliedQuery);
@@ -332,7 +334,8 @@ const Organizations = () => {
       current.loading ||
       current.loadingMore ||
       !cursor
-    ) return;
+    )
+      return;
     if (paginationRequestRef.current?.scopeKey === directoryScopeKey) return;
     const history =
       requestedCursorsRef.current?.scopeKey === directoryScopeKey
@@ -478,9 +481,7 @@ const Organizations = () => {
     );
     if (!next) return;
     setFilterInstitutionSelection(
-      nextInstitution
-        ? { authScopeKey, institution: nextInstitution }
-        : null,
+      nextInstitution ? { authScopeKey, institution: nextInstitution } : null,
     );
     setFilterInstitutionsState(null);
     setSearchSubmitError(null);
@@ -499,7 +500,8 @@ const Organizations = () => {
       );
       setDirectoryShareFeedback({
         scopeKey,
-        message: "Enlace del directorio copiado con los filtros públicos aplicados.",
+        message:
+          "Enlace del directorio copiado con los filtros públicos aplicados.",
       });
     } catch {
       setDirectoryShareFeedback({
