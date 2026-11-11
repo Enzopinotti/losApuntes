@@ -311,4 +311,17 @@ assert.match(b290MobileDir, /accessibilityState=\{\{ busy, disabled: followActio
 assert.match(b290MobileDir, /filterInstitutionQuery/u);
 assert.match(b290MobileDir, /<PublicAvatar/u);
 
+const b293MobileApi = await read('apps/mobile/src/features/organizations/organizations-api.ts');
+const b293MobileController = await read('apps/mobile/src/features/organizations/organizations-controller.ts');
+const b293MobileDetail = await read('apps/mobile/src/features/organizations/organization-detail-screen.tsx');
+assert.match(b293MobileApi, /if \(from && !cursor\) query\.set\("from", from\)/u);
+assert.match(b293MobileController, /loadUpcomingEvents\(/u);
+assert.match(b293MobileController, /new Date\(\)\.toISOString\(\)/u);
+assert.match(b293MobileController, /requestedUpcomingEventCursors/u);
+assert.match(b293MobileController, /upcomingEventsNextCursor: repeatedCursor \? null : page\.nextCursor/u);
+assert.match(b293MobileDetail, /controller\.loadUpcomingEvents\(/u);
+assert.match(b293MobileDetail, /controller\.showAllEvents\(/u);
+assert.match(b293MobileDetail, /No hay próximos eventos\./u);
+assert.match(b293MobileDetail, /onShareExternal=\{\(\) => void shareEvent\(event\)\}/u);
+
 console.log('PASS Web Organizations authority/source contract');
