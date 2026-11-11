@@ -150,7 +150,7 @@ assert.match(questions, /q: appliedQuery \|\| undefined/u);
 assert.match(questions, /status: appliedStatus \|\| undefined/u);
 assert.match(questions, /setQuery\(appliedQuery\)/u);
 assert.match(questions, /setStatusFilter\(appliedStatus\)/u);
-assert.match(questions, /questionDiscoverySearchParams\(searchParams, query, statusFilter\)/u);
+assert.match(questions, /questionDiscoverySearchParams\(\s*searchParams,\s*query,\s*statusFilter,?\s*\)/u);
 assert.match(questions, /questionDiscoveryClearParams\(current\)/u);
 assert.match(questions, /questionDiscoveryListHref\(searchParams\)/u);
 assert.match(questions, /new URL\(discoveryLink, window\.location\.origin\)/u);
