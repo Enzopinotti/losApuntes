@@ -727,6 +727,91 @@ test("upcoming events use the server date filter and keep their cursor isolated"
   }
 });
 
+test("upcoming event cursor cycles stop without altering all-event pages", async () => {
+  const initial = detail("org-a", false, [post("p1")], [event("all-1")]);
+  initial.eventsNextCursor = "all-next";
+  let requests = 0;
+  const controller = new MobileOrganizationDetailController(
+    apiStub({
+      get: async () => ({ organization: initial }),
+      events: async (_id, cursor) => {
+        requests += 1;
+        return cursor
+          ? { items: [event("future-2")], nextCursor: cursor }
+          : { items: [event("future-1")], nextCursor: "future-next" };
+      },
+    }),
+  );
+
+  await controller.load("session-a:org:org-a", "org-a");
+  await controller.loadUpcomingEvents("session-a:org:org-a", "org-a");
+  await controller.loadMoreEvents("session-a:org:org-a", "org-a");
+  await controller.loadMoreEvents("session-a:org:org-a", "org-a");
+
+  let snapshot = controller.getSnapshot();
+  assert.equal(requests, 2);
+  assert.equal(snapshot.kind, "ready");
+  if (snapshot.kind !== "ready") return;
+  assert.equal(snapshot.eventView, "upcoming");
+  assert.deepEqual(snapshot.upcomingEvents.map((item) => item.id), [
+    "future-1",
+    "future-2",
+  ]);
+  assert.equal(snapshot.upcomingEventsNextCursor, null);
+  assert.equal(snapshot.organization.eventsNextCursor, "all-next");
+  assert.equal(snapshot.failure?.code, "ORGANIZATION_DETAIL_CURSOR_REPEATED");
+
+  controller.showAllEvents("session-a:org:org-a", "org-a");
+  snapshot = controller.getSnapshot();
+  assert.equal(snapshot.kind, "ready");
+  if (snapshot.kind === "ready") {
+    assert.equal(snapshot.eventView, "all");
+    assert.equal(snapshot.organization.eventsNextCursor, "all-next");
+    assert.equal(snapshot.failure, null);
+  }
+});
+
+test("upcoming event request failures preserve the previous all-event view for retry", async () => {
+  const initial = detail("org-b", false, [post("p1")], [event("all-1")]);
+  let requests = 0;
+  const controller = new MobileOrganizationDetailController(
+    apiStub({
+      get: async () => ({ organization: initial }),
+      events: async () => {
+        requests += 1;
+        if (requests === 1) {
+          throw new ApiRequestError(
+            "server_unavailable",
+            503,
+            "TEMPORARY_UNAVAILABLE",
+            "temporary failure",
+          );
+        }
+        return { items: [event("future-1")], nextCursor: null };
+      },
+    }),
+  );
+
+  await controller.load("session-a:org:org-b", "org-b");
+  await controller.loadUpcomingEvents("session-a:org:org-b", "org-b");
+  let snapshot = controller.getSnapshot();
+  assert.equal(snapshot.kind, "ready");
+  if (snapshot.kind !== "ready") return;
+  assert.equal(snapshot.eventView, "all");
+  assert.equal(snapshot.failure?.kind, "server_unavailable");
+  assert.deepEqual(snapshot.organization.events.map((item) => item.id), ["all-1"]);
+
+  await controller.loadUpcomingEvents("session-a:org:org-b", "org-b");
+  snapshot = controller.getSnapshot();
+  assert.equal(requests, 2);
+  assert.equal(snapshot.kind, "ready");
+  if (snapshot.kind === "ready") {
+    assert.equal(snapshot.eventView, "upcoming");
+    assert.equal(snapshot.failure, null);
+    assert.deepEqual(snapshot.upcomingEvents.map((item) => item.id), ["future-1"]);
+  }
+});
+
 test("organization search query policy mirrors the server 2-120 contract", () => {
   assert.deepEqual(normalizeOrganizationQuery("  "), { ok: true, query: "" });
   assert.deepEqual(normalizeOrganizationQuery("  GIDAS  "), {
