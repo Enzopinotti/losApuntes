@@ -701,16 +701,31 @@ export class MobileOrganizationDetailController {
     organizationId: string,
   ): Promise<void> {
     const current = this.currentReady(authorityKey, organizationId);
-    const cursor = current?.organization.eventsNextCursor;
+    const upcoming = current?.eventView === "upcoming";
+    const cursor = upcoming
+      ? current?.upcomingEventsNextCursor
+      : current?.organization.eventsNextCursor;
+    const requestedCursors = upcoming
+      ? this.requestedUpcomingEventCursors
+      : this.requestedEventCursors;
     if (!current || current.busy || !cursor || this.active) return;
 
-    if (this.requestedEventCursors.has(cursor)) {
-      this.publish({
-        ...current,
-        organization: { ...current.organization, eventsNextCursor: null },
-        failure: mobileOrganizationsFailure(repeatedDetailCursor()),
-        notice: null,
-      });
+    if (requestedCursors.has(cursor)) {
+      this.publish(
+        upcoming
+          ? {
+              ...current,
+              upcomingEventsNextCursor: null,
+              failure: mobileOrganizationsFailure(repeatedDetailCursor()),
+              notice: null,
+            }
+          : {
+              ...current,
+              organization: { ...current.organization, eventsNextCursor: null },
+              failure: mobileOrganizationsFailure(repeatedDetailCursor()),
+              notice: null,
+            },
+      );
       return;
     }
 
@@ -732,28 +747,44 @@ export class MobileOrganizationDetailController {
       const latest = this.currentReady(authorityKey, organizationId);
       if (!latest) return;
       const repeatedCursor = repeatsDetailCursor(
-        this.requestedEventCursors,
+        requestedCursors,
         cursor,
         page.nextCursor,
       );
-      this.requestedEventCursors.add(cursor);
+      requestedCursors.add(cursor);
 
-      this.publish({
-        ...latest,
-        organization: {
-          ...latest.organization,
-          events: appendUnique<OrganizationEvent>(
-            latest.organization.events,
-            page.items,
-          ),
-          eventsNextCursor: repeatedCursor ? null : page.nextCursor,
-        },
-        busy: null,
-        failure: repeatedCursor
-          ? mobileOrganizationsFailure(repeatedDetailCursor())
-          : null,
-        notice: repeatedCursor ? null : latest.notice,
-      });
+      this.publish(
+        upcoming
+          ? {
+              ...latest,
+              upcomingEvents: appendUnique<OrganizationEvent>(
+                latest.upcomingEvents,
+                page.items,
+              ),
+              upcomingEventsNextCursor: repeatedCursor ? null : page.nextCursor,
+              busy: null,
+              failure: repeatedCursor
+                ? mobileOrganizationsFailure(repeatedDetailCursor())
+                : null,
+              notice: repeatedCursor ? null : latest.notice,
+            }
+          : {
+              ...latest,
+              organization: {
+                ...latest.organization,
+                events: appendUnique<OrganizationEvent>(
+                  latest.organization.events,
+                  page.items,
+                ),
+                eventsNextCursor: repeatedCursor ? null : page.nextCursor,
+              },
+              busy: null,
+              failure: repeatedCursor
+                ? mobileOrganizationsFailure(repeatedDetailCursor())
+                : null,
+              notice: repeatedCursor ? null : latest.notice,
+            },
+      );
     } catch (error) {
       if (!this.isCurrent(operation, organizationId)) return;
       this.publishFailureOnReady(
