@@ -487,7 +487,10 @@ export type MobileOrganizationDetailSnapshot =
       authorityKey: string;
       organizationId: string;
       organization: OrganizationDetail;
-      busy: "follow" | "posts-more" | "events-more" | null;
+      eventView: "all" | "upcoming";
+      upcomingEvents: OrganizationEvent[];
+      upcomingEventsNextCursor: string | null;
+      busy: "follow" | "posts-more" | "events-filter" | "events-more" | null;
       failure: MobileOrganizationsFailure | null;
       notice: string | null;
     }
@@ -509,6 +512,7 @@ export class MobileOrganizationDetailController {
   private active: Operation | null = null;
   private readonly requestedPostCursors = new Set<string>();
   private readonly requestedEventCursors = new Set<string>();
+  private readonly requestedUpcomingEventCursors = new Set<string>();
 
   constructor(private readonly api: MobileOrganizationsApiContract) {}
 
@@ -525,6 +529,7 @@ export class MobileOrganizationDetailController {
     this.organizationId = organizationId;
     this.requestedPostCursors.clear();
     this.requestedEventCursors.clear();
+    this.requestedUpcomingEventCursors.clear();
     const operation = this.begin(authorityKey);
     this.publish({ kind: "loading", authorityKey, organizationId });
 
@@ -696,16 +701,31 @@ export class MobileOrganizationDetailController {
     organizationId: string,
   ): Promise<void> {
     const current = this.currentReady(authorityKey, organizationId);
-    const cursor = current?.organization.eventsNextCursor;
+    const upcoming = current?.eventView === "upcoming";
+    const cursor = upcoming
+      ? current?.upcomingEventsNextCursor
+      : current?.organization.eventsNextCursor;
+    const requestedCursors = upcoming
+      ? this.requestedUpcomingEventCursors
+      : this.requestedEventCursors;
     if (!current || current.busy || !cursor || this.active) return;
 
-    if (this.requestedEventCursors.has(cursor)) {
-      this.publish({
-        ...current,
-        organization: { ...current.organization, eventsNextCursor: null },
-        failure: mobileOrganizationsFailure(repeatedDetailCursor()),
-        notice: null,
-      });
+    if (requestedCursors.has(cursor)) {
+      this.publish(
+        upcoming
+          ? {
+              ...current,
+              upcomingEventsNextCursor: null,
+              failure: mobileOrganizationsFailure(repeatedDetailCursor()),
+              notice: null,
+            }
+          : {
+              ...current,
+              organization: { ...current.organization, eventsNextCursor: null },
+              failure: mobileOrganizationsFailure(repeatedDetailCursor()),
+              notice: null,
+            },
+      );
       return;
     }
 
@@ -727,27 +747,89 @@ export class MobileOrganizationDetailController {
       const latest = this.currentReady(authorityKey, organizationId);
       if (!latest) return;
       const repeatedCursor = repeatsDetailCursor(
-        this.requestedEventCursors,
+        requestedCursors,
         cursor,
         page.nextCursor,
       );
-      this.requestedEventCursors.add(cursor);
+      requestedCursors.add(cursor);
 
+      this.publish(
+        upcoming
+          ? {
+              ...latest,
+              upcomingEvents: appendUnique<OrganizationEvent>(
+                latest.upcomingEvents,
+                page.items,
+              ),
+              upcomingEventsNextCursor: repeatedCursor ? null : page.nextCursor,
+              busy: null,
+              failure: repeatedCursor
+                ? mobileOrganizationsFailure(repeatedDetailCursor())
+                : null,
+              notice: repeatedCursor ? null : latest.notice,
+            }
+          : {
+              ...latest,
+              organization: {
+                ...latest.organization,
+                events: appendUnique<OrganizationEvent>(
+                  latest.organization.events,
+                  page.items,
+                ),
+                eventsNextCursor: repeatedCursor ? null : page.nextCursor,
+              },
+              busy: null,
+              failure: repeatedCursor
+                ? mobileOrganizationsFailure(repeatedDetailCursor())
+                : null,
+              notice: repeatedCursor ? null : latest.notice,
+            },
+      );
+    } catch (error) {
+      if (!this.isCurrent(operation, organizationId)) return;
+      this.publishFailureOnReady(
+        authorityKey,
+        organizationId,
+        mobileOrganizationsFailure(error),
+      );
+    } finally {
+      this.finish(operation);
+    }
+  }
+
+  async loadUpcomingEvents(
+    authorityKey: string,
+    organizationId: string,
+  ): Promise<void> {
+    const current = this.currentReady(authorityKey, organizationId);
+    if (!current || current.busy || this.active) return;
+
+    this.requestedUpcomingEventCursors.clear();
+    const operation = this.begin(authorityKey);
+    this.publish({
+      ...current,
+      busy: "events-filter",
+      failure: null,
+      notice: null,
+    });
+
+    try {
+      const page = await this.api.events(
+        organizationId,
+        undefined,
+        operation.controller.signal,
+        new Date().toISOString(),
+      );
+      if (!this.isCurrent(operation, organizationId)) return;
+      const latest = this.currentReady(authorityKey, organizationId);
+      if (!latest) return;
       this.publish({
         ...latest,
-        organization: {
-          ...latest.organization,
-          events: appendUnique<OrganizationEvent>(
-            latest.organization.events,
-            page.items,
-          ),
-          eventsNextCursor: repeatedCursor ? null : page.nextCursor,
-        },
+        eventView: "upcoming",
+        upcomingEvents: page.items,
+        upcomingEventsNextCursor: page.nextCursor,
         busy: null,
-        failure: repeatedCursor
-          ? mobileOrganizationsFailure(repeatedDetailCursor())
-          : null,
-        notice: repeatedCursor ? null : latest.notice,
+        failure: null,
       });
     } catch (error) {
       if (!this.isCurrent(operation, organizationId)) return;
@@ -759,6 +841,12 @@ export class MobileOrganizationDetailController {
     } finally {
       this.finish(operation);
     }
+  }
+
+  showAllEvents(authorityKey: string, organizationId: string): void {
+    const current = this.currentReady(authorityKey, organizationId);
+    if (!current || current.busy || this.active) return;
+    this.publish({ ...current, eventView: "all", failure: null, notice: null });
   }
 
   suspend(authorityKey: string): void {
@@ -781,6 +869,7 @@ export class MobileOrganizationDetailController {
     this.organizationId = null;
     this.requestedPostCursors.clear();
     this.requestedEventCursors.clear();
+    this.requestedUpcomingEventCursors.clear();
     this.generation += 1;
     this.active?.controller.abort();
     this.active = null;
@@ -832,6 +921,9 @@ export class MobileOrganizationDetailController {
       authorityKey,
       organizationId,
       organization,
+      eventView: "all",
+      upcomingEvents: [],
+      upcomingEventsNextCursor: null,
       busy: null,
       failure: null,
       notice,

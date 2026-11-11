@@ -50,6 +50,7 @@ export interface MobileOrganizationsTransport {
     id: string,
     cursor?: string,
     signal?: AbortSignal,
+    from?: string,
   ): Promise<OrganizationEventPage>;
 }
 
@@ -79,6 +80,7 @@ export interface MobileOrganizationsApiContract {
     id: string,
     cursor?: string,
     signal?: AbortSignal,
+    from?: string,
   ): Promise<OrganizationEventPage>;
 }
 
@@ -157,9 +159,11 @@ export class MobileOrganizationsHttpTransport implements MobileOrganizationsTran
     id: string,
     cursor?: string,
     signal?: AbortSignal,
+    from?: string,
   ) {
     const query = new URLSearchParams({ limit: "20" });
     if (cursor) query.set("cursor", cursor);
+    if (from && !cursor) query.set("from", from);
 
     return this.client.request<OrganizationEventPage>(
       `/organizations/${encodeURIComponent(id)}/events?${query.toString()}`,
@@ -207,9 +211,9 @@ export class MobileOrganizationsApi implements MobileOrganizationsApiContract {
     );
   }
 
-  events(id: string, cursor?: string, signal?: AbortSignal) {
+  events(id: string, cursor?: string, signal?: AbortSignal, from?: string) {
     return this.authorized((credential) =>
-      this.transport.events(credential, id, cursor, signal),
+      this.transport.events(credential, id, cursor, signal, from),
     );
   }
 
