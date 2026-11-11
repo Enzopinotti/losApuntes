@@ -644,9 +644,7 @@ const Network = () => {
                           Ver perfil
                         </Link>
                         {relation.isFollowingKnown && (
-                          <span className="community-status">
-                            Ya lo seguís
-                          </span>
+                          <span className="community-status">Ya lo seguís</span>
                         )}
                         {relation.connection && (
                           <span className="community-status">
