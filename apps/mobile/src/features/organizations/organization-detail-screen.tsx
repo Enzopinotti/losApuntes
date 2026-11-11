@@ -717,6 +717,31 @@ const styles = StyleSheet.create({
     fontWeight: "800",
     color: "#20202a",
   },
+  eventFilters: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 8,
+  },
+  eventFilterButton: {
+    minHeight: 44,
+    justifyContent: "center",
+    borderWidth: 1,
+    borderColor: "#c9cad4",
+    borderRadius: 22,
+    paddingHorizontal: 14,
+  },
+  eventFilterSelected: {
+    borderColor: "#3446a2",
+    backgroundColor: "#3446a2",
+  },
+  eventFilterText: {
+    color: "#292933",
+    fontSize: 14,
+    fontWeight: "700",
+  },
+  eventFilterTextSelected: {
+    color: "#ffffff",
+  },
   badge: {
     borderRadius: 10,
     paddingHorizontal: 8,
