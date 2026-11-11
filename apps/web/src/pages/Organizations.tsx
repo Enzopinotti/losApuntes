@@ -439,6 +439,76 @@ const Organizations = () => {
   const loadRef = useRef(load);
   loadRef.current = load;
 
+  const applyDirectorySearch = () => {
+    const next = organizationDirectorySearchParams(
+      searchParams,
+      query,
+      type,
+      verificationState,
+    );
+    if (!next) {
+      setSearchSubmitError(
+        "La búsqueda debe tener entre 2 y 120 caracteres, o estar vacía.",
+      );
+      return;
+    }
+    setSearchSubmitError(null);
+    if (next.toString() === searchParams.toString()) {
+      void loadRef.current();
+    } else {
+      setSearchParams(next);
+    }
+  };
+
+  const clearDirectorySearch = () => {
+    setSearchSubmitError(null);
+    setFilterInstitutionSelection(null);
+    setFilterInstitutionQuery("");
+    setFilterInstitutionsState(null);
+    setSearchParams((current) => organizationDirectoryClearParams(current));
+  };
+
+  const updateDirectoryInstitution = (
+    nextInstitution: AcademicInstitutionOption | null,
+  ) => {
+    const next = organizationDirectoryInstitutionParams(
+      searchParams,
+      nextInstitution?.id ?? null,
+    );
+    if (!next) return;
+    setFilterInstitutionSelection(
+      nextInstitution
+        ? { authScopeKey, institution: nextInstitution }
+        : null,
+    );
+    setFilterInstitutionsState(null);
+    setSearchSubmitError(null);
+    setSearchParams(next);
+  };
+
+  const copyDirectorySearch = async () => {
+    if (!directoryLink) return;
+    const scopeKey = shareScopeKey;
+    try {
+      if (!navigator.clipboard?.writeText) {
+        throw new Error("Clipboard unavailable");
+      }
+      await navigator.clipboard.writeText(
+        new URL(directoryLink, window.location.origin).toString(),
+      );
+      setDirectoryShareFeedback({
+        scopeKey,
+        message: "Enlace del directorio copiado con los filtros públicos aplicados.",
+      });
+    } catch {
+      setDirectoryShareFeedback({
+        scopeKey,
+        message:
+          "No pudimos copiar el enlace. Podés abrirlo y copiarlo desde el navegador.",
+      });
+    }
+  };
+
   useEffect(() => {
     void load();
   }, [load]);
@@ -587,16 +657,32 @@ const Organizations = () => {
           {error}
         </p>
       )}
+      {invalidDirectoryFilters && (
+        <p className="organizations-error" role="alert">
+          El enlace tiene filtros inválidos o repetidos. No mostraremos
+          resultados sin los filtros que intentaste usar. Limpiá los filtros
+          para volver a explorar el directorio.
+        </p>
+      )}
+      {searchSubmitError && (
+        <p className="organizations-error" role="alert">
+          {searchSubmitError}
+        </p>
+      )}
 
       <form
         className="organizations-search"
+        role="search"
         onSubmit={(event) => {
           event.preventDefault();
-          void load();
+          applyDirectorySearch();
         }}
       >
         <input
           aria-label="Buscar organizaciones"
+          type="search"
+          minLength={2}
+          maxLength={120}
           placeholder="Buscar por nombre"
           value={query}
           onChange={(event) => setQuery(event.target.value)}
@@ -631,7 +717,43 @@ const Organizations = () => {
         <button type="submit" disabled={loading}>
           Buscar
         </button>
+        <button
+          type="button"
+          className="secondary"
+          onClick={clearDirectorySearch}
+          disabled={
+            !searchParams.has("q") &&
+            !searchParams.has("type") &&
+            !searchParams.has("verificationState") &&
+            !searchParams.has("institutionId")
+          }
+        >
+          Limpiar todos los filtros
+        </button>
       </form>
+
+      <div className="organizations-directory-share">
+        <p role="status">
+          {invalidDirectoryFilters
+            ? "Búsqueda suspendida: el enlace no es válido."
+            : "Los filtros se aplican al buscar, no mientras escribís."}
+        </p>
+        {directoryLink && (
+          <div className="organizations-directory-share-actions">
+            <button
+              type="button"
+              className="secondary"
+              onClick={() => void copyDirectorySearch()}
+            >
+              Copiar búsqueda
+            </button>
+            <Link to={directoryLink}>Abrir enlace compartible</Link>
+          </div>
+        )}
+        {directoryShareFeedback?.scopeKey === shareScopeKey && (
+          <p role="status">{directoryShareFeedback.message}</p>
+        )}
+      </div>
 
       <div className="organizations-institution-filter">
         <label htmlFor="organizations-filter-institution">
@@ -643,7 +765,6 @@ const Organizations = () => {
             value={filterInstitutionQuery}
             onChange={(event) => {
               setFilterInstitutionQuery(event.target.value);
-              setFilterInstitutionSelection(null);
               setFilterInstitutionsState(null);
             }}
             placeholder="Buscar universidad"
@@ -665,9 +786,8 @@ const Organizations = () => {
               type="button"
               className="secondary"
               onClick={() => {
-                setFilterInstitutionSelection(null);
+                updateDirectoryInstitution(null);
                 setFilterInstitutionQuery("");
-                setFilterInstitutionsState(null);
               }}
             >
               Quitar filtro
@@ -685,8 +805,8 @@ const Organizations = () => {
                       authScopeKey,
                       institution: option,
                     });
+                    updateDirectoryInstitution(option);
                     setFilterInstitutionQuery(option.name);
-                    setFilterInstitutionsState(null);
                     setErrorState(null);
                   }}
                 >
