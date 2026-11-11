@@ -425,7 +425,7 @@ assert.match(
   acknowledgeAndOpen,
   /isActionRequestCurrent\(ticket\)[\s\S]*navigate\(target\)/u,
 );
-assert.match(notifications, /aria-disabled=\{actionBusy \|\| mutationNeedsRefresh \|\| undefined\}/u);
+assert.match(notifications, /aria-disabled=\{\s*actionBusy \|\| mutationNeedsRefresh \|\| undefined\s*\}/u);
 assert.match(notifications, /Esta notificación no tiene un destino navegable/u);
 assert.match(notifications, /nextCursor/u);
 assert.match(notifications, /Cargar más/u);
