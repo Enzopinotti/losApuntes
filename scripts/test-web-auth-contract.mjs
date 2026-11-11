@@ -192,5 +192,39 @@ assert.match(security, /sessionsTruncated/u);
 assert.match(security, /sessionInventoryLimit/u);
 assert.match(security, /Hay sesiones\s+adicionales que siguen activas/u);
 assert.match(security, /Cerrar todas las sesiones/u);
+assert.match(security, /new SecurityActionGate\(\)/u);
+assert.match(security, /actionGateRef\.current\.tryAcquire\(/u);
+assert.match(security, /actionGateRef\.current\.release\(lease\)/u);
+assert.match(security, /uncertainRevocationRef\.current\?\.scopeKey === authScopeKey/u);
+assert.match(security, /isUncertainSessionRevocationError\(nextError\)/u);
+assert.match(security, /sessionRevocationReconciliation\(pending\.value\.targetId, result\)/u);
+assert.match(security, /result\.truncated/u);
+assert.match(security, /Verificar sesiones/u);
+assert.match(security, /No repetimos cierres automáticamente/u);
+assert.match(security, /uncertainSessionRevocation !== null/u);
+assert.match(security, /publishAuthAuthorityChanged\(\)/u);
+assert.equal(
+  [...security.matchAll(/authApi\.revokeSession\(/gu)].length,
+  1,
+  'Reconciliation must never repeat a single session DELETE',
+);
+assert.equal(
+  [...security.matchAll(/authApi\.revokeAllSessions\(/gu)].length,
+  1,
+  'Reconciliation must never repeat a global DELETE',
+);
+assert.doesNotMatch(security, /setTimeout\([\s\S]*?revokeSession/u);
+assert.doesNotMatch(security, /localStorage|sessionStorage/u);
+assert.match(security, /security-revocation-uncertain/u);
+assert.match(security, /SecurityRevocation\.scss/u);
+const securityRecoveryStyles = await read(
+  'apps/web/src/pages/SecurityRevocation.scss',
+);
+assert.match(
+  securityRecoveryStyles,
+  /\.security-revocation-uncertain button\s*\{[^}]*min-height:\s*44px/su,
+);
+assert.match(securityRecoveryStyles, /:focus-visible/u);
+assert.doesNotMatch(securityRecoveryStyles, /localStorage|sessionStorage/u);
 
 console.log('PASS Web Auth security contract');

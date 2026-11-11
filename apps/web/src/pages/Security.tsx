@@ -19,8 +19,15 @@ import type {
 } from "../features/auth/interfaces";
 import { newPasswordValidationMessage } from "../features/auth/passwordPolicy";
 import PasswordField from "../features/auth/PasswordField";
-import { authApi } from "../features/auth/services/authService";
+import { authApi, isAuthApiError } from "../features/auth/services/authService";
+import { SecurityActionGate } from "../features/auth/security-action-gate";
+import {
+  isUncertainSessionRevocationError,
+  isValidSessionInventory,
+  sessionRevocationReconciliation,
+} from "../features/auth/security-session-reconciliation.mjs";
 import { ConfirmDialog } from "../shared/components/ConfirmDialog";
+import "./SecurityRevocation.scss";
 import {
   useAsyncAuthorityFence,
   type AsyncAuthorityTicket,
@@ -49,6 +56,12 @@ type SecurityPresentation = {
   feedback: string | null;
   error: string | null;
   requestId: string | undefined;
+};
+
+type UncertainSessionRevocation = {
+  kind: "one" | "all";
+  targetId: string | null;
+  currentSession: boolean;
 };
 
 type SecurityDrafts = {
@@ -92,6 +105,17 @@ const Security = () => {
     isCurrent: isActionCurrent,
     finish: finishAction,
   } = useAsyncAuthorityFence(`security-action:${authScopeKey}`);
+  // Prevent repeat clicks before React can render the busy state.
+  const actionGateRef = useRef(new SecurityActionGate());
+  // A ref additionally fences an uncertain outcome before the next render.
+  const uncertainRevocationRef =
+    useRef<Scoped<UncertainSessionRevocation> | null>(null);
+  const [uncertainRevocationState, setUncertainRevocationState] =
+    useState<Scoped<UncertainSessionRevocation> | null>(null);
+  const uncertainSessionRevocation =
+    uncertainRevocationState?.scopeKey === authScopeKey
+      ? uncertainRevocationState.value
+      : null;
 
   const [snapshotState, setSnapshotState] =
     useState<Scoped<SecuritySnapshot> | null>(null);
@@ -214,6 +238,8 @@ const Security = () => {
     });
     setDraftState({ scopeKey: authScopeKey, value: emptySecurityDrafts });
     setConfirmState({ scopeKey: authScopeKey, value: false });
+    uncertainRevocationRef.current = null;
+    setUncertainRevocationState(null);
   }, [authScopeKey]);
 
   useEffect(() => {
@@ -239,8 +265,14 @@ const Security = () => {
     complete: (result: T, ticket: AsyncAuthorityTicket) => Promise<void> | void,
     fallbackMessage: string,
   ) => {
+    if (uncertainRevocationRef.current?.scopeKey === authScopeKey) return;
+    const lease = actionGateRef.current.tryAcquire(authScopeKey, key);
+    if (!lease) return;
     const ticket = beginAction();
-    if (!isActionCurrent(ticket)) return;
+    if (!isActionCurrent(ticket)) {
+      actionGateRef.current.release(lease);
+      return;
+    }
     updatePresentation((current) => ({
       ...current,
       busyAction: key,
@@ -255,12 +287,142 @@ const Security = () => {
       await complete(result, ticket);
     } catch (nextError) {
       if (!isActionCurrent(ticket)) return;
+      if (
+        (key === "all-sessions" || key.startsWith("session:")) &&
+        isUncertainSessionRevocationError(nextError)
+      ) {
+        const pending: Scoped<UncertainSessionRevocation> = {
+          scopeKey: authScopeKey,
+          value: {
+            kind: key === "all-sessions" ? "all" : "one",
+            targetId: key.startsWith("session:") ? key.slice(8) : null,
+            currentSession:
+              key.startsWith("session:") &&
+              (key.slice(8) === session?.id ||
+                sessions.some(
+                  (item) => item.id === key.slice(8) && item.current,
+                )),
+          },
+        };
+        uncertainRevocationRef.current = pending;
+        setUncertainRevocationState(pending);
+        updatePresentation((current) => ({
+          ...current,
+          error:
+            "No sabemos si el servidor cerró la sesión. Para evitar un segundo cierre accidental, verificá el estado antes de continuar.",
+          requestId: authErrorRequestId(nextError),
+        }));
+      } else {
+        updatePresentation((current) => ({
+          ...current,
+          error: authErrorMessage(nextError, fallbackMessage),
+          requestId: authErrorRequestId(nextError),
+        }));
+      }
+    } finally {
+      actionGateRef.current.release(lease);
+      if (finishAction(ticket)) {
+        updatePresentation((current) => ({ ...current, busyAction: null }));
+      }
+    }
+  };
+
+  // Only a user-triggered fresh inventory can settle an ambiguous DELETE.
+  // Never retry a sensitive revocation automatically.
+  const verifyUncertainRevocation = async () => {
+    const pending = uncertainRevocationRef.current;
+    if (!pending || pending.scopeKey !== authScopeKey) return;
+    const lease = actionGateRef.current.tryAcquire(
+      authScopeKey,
+      "verify-revocation",
+    );
+    if (!lease) return;
+    const ticket = beginAction();
+    if (!isActionCurrent(ticket)) {
+      actionGateRef.current.release(lease);
+      return;
+    }
+    updatePresentation((current) => ({
+      ...current,
+      busyAction: "verify-revocation",
+      error: null,
+      feedback: null,
+      requestId: undefined,
+    }));
+
+    try {
+      const result = await authApi.sessions(ticket.signal);
+      if (!isActionCurrent(ticket)) return;
+      if (!isValidSessionInventory(result)) {
+        updatePresentation((current) => ({
+          ...current,
+          error:
+            "El servidor devolvió un inventario de sesiones inválido. El cierre sigue sin confirmarse; no repetimos ninguna operación.",
+        }));
+        return;
+      }
+      setSnapshotState((current) =>
+        current?.scopeKey === authScopeKey
+          ? {
+              scopeKey: authScopeKey,
+              value: {
+                ...current.value,
+                sessions: result.sessions,
+                sessionsTruncated: result.truncated,
+                sessionInventoryLimit: result.limit,
+              },
+            }
+          : current,
+      );
+
+      const outcome =
+        pending.value.kind === "one" && pending.value.targetId
+          ? sessionRevocationReconciliation(pending.value.targetId, result)
+          : "unknown";
+      if (
+        pending.value.kind === "one" &&
+        (outcome === "unknown" ||
+          (outcome === "revoked" && pending.value.currentSession))
+      ) {
+        updatePresentation((current) => ({
+          ...current,
+          error:
+            "La lista de sesiones no permite confirmar el cierre. Si está incompleta, revisá tus otros dispositivos o consultá soporte antes de repetir la acción.",
+        }));
+        return;
+      }
+
+      // Active = definitely still listed; revoked = absent from a complete
+      // inventory. Neither path resends a DELETE.
+      uncertainRevocationRef.current = null;
+      setUncertainRevocationState(null);
       updatePresentation((current) => ({
         ...current,
-        error: authErrorMessage(nextError, fallbackMessage),
+        feedback:
+          pending.value.kind === "all"
+            ? "Tu sesión actual sigue activa. No pudimos confirmar el cierre global; podés intentarlo de nuevo manualmente si lo necesitás."
+            : outcome === "active"
+              ? "La sesión continúa activa. Podés volver a intentar el cierre manualmente."
+              : "Verificamos con el servidor que esa sesión ya no está activa.",
+      }));
+    } catch (nextError) {
+      if (!isActionCurrent(ticket)) return;
+      if (isAuthApiError(nextError) && nextError.status === 401) {
+        uncertainRevocationRef.current = null;
+        setUncertainRevocationState(null);
+        publishAuthAuthorityChanged();
+        navigate("/login", { replace: true });
+        void refresh();
+        return;
+      }
+      updatePresentation((current) => ({
+        ...current,
+        error:
+          "No pudimos verificar las sesiones. El resultado sigue siendo incierto y no repetimos la revocación.",
         requestId: authErrorRequestId(nextError),
       }));
     } finally {
+      actionGateRef.current.release(lease);
       if (finishAction(ticket)) {
         updatePresentation((current) => ({ ...current, busyAction: null }));
       }
@@ -406,6 +568,27 @@ const Security = () => {
         </div>
       )}
 
+      {uncertainSessionRevocation && (
+        <section
+          className="security-revocation-uncertain"
+          aria-label="Cierre de sesión pendiente de verificación"
+        >
+          <p role="status">
+            No repetimos cierres automáticamente: el resultado anterior es
+            incierto. Verificá el inventario de sesiones antes de continuar.
+          </p>
+          <button
+            type="button"
+            disabled={busyAction !== null}
+            onClick={() => void verifyUncertainRevocation()}
+          >
+            {busyAction === "verify-revocation"
+              ? "Verificando sesiones…"
+              : "Verificar sesiones"}
+          </button>
+        </section>
+      )}
+
       <ConfirmDialog
         open={revokeAllConfirmOpen}
         title="Cerrar todas las sesiones"
@@ -413,7 +596,12 @@ const Security = () => {
         confirmLabel="Cerrar todas las sesiones"
         onCancel={() => setRevokeAllConfirmOpen(false)}
         onConfirm={() => {
-          if (!revokeAllConfirmOpen || busyAction !== null) return;
+          if (
+            !revokeAllConfirmOpen ||
+            busyAction !== null ||
+            uncertainSessionRevocation !== null
+          )
+            return;
           setRevokeAllConfirmOpen(false);
           void revokeAll();
         }}
@@ -439,7 +627,9 @@ const Security = () => {
                   required
                   maxLength={256}
                   value={currentPassword}
-                  disabled={busyAction !== null}
+                  disabled={
+                    busyAction !== null || uncertainSessionRevocation !== null
+                  }
                   onChange={(event) =>
                     updateDrafts((current) => ({
                       ...current,
@@ -455,7 +645,9 @@ const Security = () => {
                   autoComplete="new-password"
                   required
                   value={newPassword}
-                  disabled={busyAction !== null}
+                  disabled={
+                    busyAction !== null || uncertainSessionRevocation !== null
+                  }
                   onChange={(event) =>
                     updateDrafts((current) => ({
                       ...current,
@@ -473,7 +665,9 @@ const Security = () => {
                   autoComplete="new-password"
                   required
                   value={confirmPassword}
-                  disabled={busyAction !== null}
+                  disabled={
+                    busyAction !== null || uncertainSessionRevocation !== null
+                  }
                   onChange={(event) =>
                     updateDrafts((current) => ({
                       ...current,
@@ -486,7 +680,12 @@ const Security = () => {
                   Al cambiarla se cierran todas las sesiones, incluida esta.
                 </p>
 
-                <button type="submit" disabled={busyAction !== null}>
+                <button
+                  type="submit"
+                  disabled={
+                    busyAction !== null || uncertainSessionRevocation !== null
+                  }
+                >
                   {busyAction === "password"
                     ? "Cambiando…"
                     : "Cambiar contraseña"}
@@ -538,7 +737,10 @@ const Security = () => {
                     </div>
                     <button
                       type="button"
-                      disabled={busyAction !== null}
+                      disabled={
+                        busyAction !== null ||
+                        uncertainSessionRevocation !== null
+                      }
                       onClick={() => void revokeSession(item)}
                     >
                       {item.current ? "Cerrar esta sesión" : "Cerrar sesión"}
@@ -551,7 +753,9 @@ const Security = () => {
             <button
               ref={revokeAllButtonRef}
               type="button"
-              disabled={busyAction !== null}
+              disabled={
+                busyAction !== null || uncertainSessionRevocation !== null
+              }
               onClick={() => setRevokeAllConfirmOpen(true)}
             >
               Cerrar todas las sesiones
@@ -591,7 +795,11 @@ const Security = () => {
                       googlePassword: event.target.value,
                     }))
                   }
-                  disabled={!methods?.passwordConfigured || busyAction !== null}
+                  disabled={
+                    !methods?.passwordConfigured ||
+                    busyAction !== null ||
+                    uncertainSessionRevocation !== null
+                  }
                 />
 
                 {methods?.googleConnected ? (
@@ -601,7 +809,8 @@ const Security = () => {
                     disabled={
                       !methods.passwordConfigured ||
                       !googlePassword ||
-                      busyAction !== null
+                      busyAction !== null ||
+                      uncertainSessionRevocation !== null
                     }
                   >
                     Desconectar Google
@@ -613,7 +822,8 @@ const Security = () => {
                     disabled={
                       !methods?.passwordConfigured ||
                       !googlePassword ||
-                      busyAction !== null
+                      busyAction !== null ||
+                      uncertainSessionRevocation !== null
                     }
                   >
                     Conectar Google

@@ -1,0 +1,40 @@
+.security-revocation-uncertain {
+  display: grid;
+  justify-items: start;
+  gap: 0.75rem;
+  border: 1px solid #b5bdc8;
+  border-radius: 12px;
+  padding: 1rem;
+  margin: 1rem 0;
+  background: #f6f7f9;
+  color: #27313e;
+}
+
+.security-revocation-uncertain p {
+  margin: 0;
+  line-height: 1.55;
+  max-width: 68ch;
+}
+
+.security-revocation-uncertain button {
+  box-sizing: border-box;
+  min-height: 44px;
+  padding: 0.7rem 1rem;
+  border: 1px solid #6a7585;
+  border-radius: 10px;
+  font: inherit;
+  font-weight: 650;
+  background: #fff;
+  color: inherit;
+  cursor: pointer;
+}
+
+.security-revocation-uncertain button:focus-visible {
+  outline: 3px solid #355e9c;
+  outline-offset: 3px;
+}
+
+.security-revocation-uncertain button:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
