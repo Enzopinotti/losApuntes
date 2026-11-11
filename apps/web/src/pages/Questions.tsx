@@ -42,6 +42,7 @@ import type { AcademicSubjectOption } from "../features/resources/interfaces";
 import { resourcesApi } from "../features/resources/services/resourcesService";
 import { useAsyncAuthorityFence } from "../shared/useAsyncAuthorityFence";
 import "./Community.scss";
+import "./QaDiscoveryShare.scss";
 
 function CommunityAuthorAttribution({
   author,
